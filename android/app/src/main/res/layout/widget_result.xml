@@ -6,7 +6,8 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="14dp"
-    android:background="@drawable/widget_bg">
+    android:background="@drawable/widget_bg"
+    android:clipToOutline="true">
 
     <!-- Accent rule: aqua → cyan-green glow -->
     <ImageView
@@ -41,8 +42,7 @@
             android:layout_height="26dp"
             android:padding="5dp"
             android:src="@android:drawable/ic_popup_sync"
-            android:contentDescription="@string/widget_refresh"
-            android:background="?android:attr/selectableItemBackgroundBorderless" />
+            android:contentDescription="@string/widget_refresh" />
     </LinearLayout>
 
     <!-- Big percentage with a soft bloom behind it -->

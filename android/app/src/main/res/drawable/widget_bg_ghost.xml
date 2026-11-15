@@ -1,34 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Sculpted widget panel: the night-earth photo under a navy wash.
-     Opacity variants are swapped by WidgetStyle at runtime. -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <shape android:shape="rectangle">
-            <solid android:color="#04070F" />
-            <corners android:radius="20dp" />
-        </shape>
-    </item>
-    <item android:alpha="0.50">
-        <bitmap
-            android:src="@drawable/widget_bg_image"
-            android:gravity="top|center_horizontal"
-            android:scaleType="centerCrop" />
-    </item>
-    <item>
-        <shape android:shape="rectangle">
-            <gradient
-                android:angle="270"
-                android:startColor="#730C1832"
-                android:endColor="#8C04070F"
-                android:type="linear" />
-            <corners android:radius="20dp" />
-        </shape>
-    </item>
-    <item>
-        <shape android:shape="rectangle">
-            <solid android:color="#00000000" />
-            <corners android:radius="20dp" />
-            <stroke android:width="1dp" android:color="#8025F4C8" />
-        </shape>
-    </item>
-</layer-list>
+<!-- Translucent widget panel (very transparent, 85 alpha head).
+     No bitmap layer here on purpose: a bitmap inside a layer-list is not
+     clipped by <corners>, which is what produced the little triangular
+     spurs poking out of the four rounded corners. A plain gradient shape
+     is always clipped correctly, so the corners stay perfectly round.
+     WidgetStyle swaps between the four variants at runtime. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:startColor="#850C1832"
+        android:centerColor="#85081020"
+        android:endColor="#8504070F"
+        android:type="linear" />
+    <corners android:radius="20dp" />
+    <stroke
+        android:width="1dp"
+        android:color="#8025F4C8" />
+</shape>

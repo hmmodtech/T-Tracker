@@ -6,7 +6,8 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="12dp"
-    android:background="@drawable/widget_bg">
+    android:background="@drawable/widget_bg"
+    android:clipToOutline="true">
 
     <!-- Accent rule: aqua → cyan-green glow -->
     <ImageView
@@ -49,8 +50,7 @@
             android:layout_height="26dp"
             android:padding="5dp"
             android:src="@android:drawable/ic_input_add"
-            android:contentDescription="@string/widget_add"
-            android:background="?android:attr/selectableItemBackgroundBorderless" />
+            android:contentDescription="@string/widget_add" />
     </LinearLayout>
 
     <TextView
