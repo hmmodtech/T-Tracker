@@ -444,88 +444,134 @@ class _HomeScreenState extends State<HomeScreen>
               child: const Icon(Icons.add, size: 22),
             ),
           ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
-            children: [
-              GlassPanel(
-                padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
-                child: MonthCalendar(
-                  focusedDay: _focused,
-                  selectedDay: _selected,
-                  tasks: _tasks,
-                  doneKeys: _done,
-                  memosByDay: _memosByDay,
-                  onSelect: (sel) {
-                    setState(() {
-                      _selected = dateOnly(sel);
-                      _focused = sel;
-                    });
-                    _load();
-                  },
-                  onMonthChanged: (m) => setState(() => _focused = m),
+          // A CustomScrollView with a builder delegate: header widgets are
+          // fixed, and tasks/memos are built lazily as they scroll into view.
+          body: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate.fixed([
+                    GlassPanel(
+                      padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+                      child: MonthCalendar(
+                        focusedDay: _focused,
+                        selectedDay: _selected,
+                        tasks: _tasks,
+                        doneKeys: _done,
+                        memosByDay: _memosByDay,
+                        onSelect: (sel) {
+                          setState(() {
+                            _selected = dateOnly(sel);
+                            _focused = sel;
+                          });
+                          _load();
+                        },
+                        onMonthChanged: (m) => setState(() => _focused = m),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(
+                        child: Text(
+                          DateFormat.yMMMMEEEEd(ar ? 'ar' : 'en_US')
+                              .format(_selected)
+                              .toUpperCase(),
+                          style: TextStyle(
+                              color: kGreen,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _goToday,
+                        child: Text(s.t('TODAY', 'اليوم')),
+                      ),
+                    ]),
+                    _section(s.t('TASKS', 'المهام')),
+                  ]),
                 ),
               ),
 
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                  child: Text(
-                    DateFormat.yMMMMEEEEd(ar ? 'ar' : 'en_US')
-                        .format(_selected)
-                        .toUpperCase(),
-                    style: TextStyle(
-                        color: kGreen,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1),
-                  ),
-                ),
-                TextButton(
-                  onPressed: _goToday,
-                  child: Text(s.t('TODAY', 'اليوم')),
-                ),
-              ]),
-
-              _section(s.t('TASKS', 'المهام')),
+              // ---- Tasks (lazy) ----
               if (dayTasks.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(s.t('No tasks for this day', 'لا توجد مهام لهذا اليوم'),
-                      style: TextStyle(color: kMuted)),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  sliver: SliverToBoxAdapter(
+                    child: Text(
+                      s.t('No tasks for this day', 'لا توجد مهام لهذا اليوم'),
+                      style: TextStyle(color: kMuted),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => _taskCard(dayTasks[i]),
+                      childCount: dayTasks.length,
+                    ),
+                  ),
                 ),
-              ...dayTasks.map(_taskCard),
 
-              _section(s.t('MEMOS', 'المذكرات')),
-              for (final n in _notes)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  decoration: glass(border: kDimGreen.withAlpha(90)),
-                  child: ListTile(
-                    dense: true,
-                    title: Text(n.text),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () async {
-                        await Db.instance.deleteNote(n.id);
-                        _load();
-                      },
-                    ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate.fixed([
+                    _section(s.t('MEMOS', 'المذكرات')),
+                  ]),
+                ),
+              ),
+
+              // ---- Memos (lazy) ----
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                  childCount: _notes.length,
+                  (context, i) {
+                    final n = _notes[i];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: glass(border: kDimGreen.withAlpha(90)),
+                      child: ListTile(
+                        dense: true,
+                        title: Text(n.text),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () async {
+                            await Db.instance.deleteNote(n.id);
+                            _load();
+                          },
+                        ),
+                      ),
+                    );
+                  },
                   ),
                 ),
-              Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _memo,
-                    onSubmitted: (_) => _addMemo(),
-                    decoration: InputDecoration(
-                      hintText: s.t('Write a memo...', 'اكتب مذكرة...'),
+              ),
+
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 100),
+                sliver: SliverToBoxAdapter(
+                  child: Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _memo,
+                        onSubmitted: (_) => _addMemo(),
+                        decoration: InputDecoration(
+                          hintText: s.t('Write a memo...', 'اكتب مذكرة...'),
+                        ),
+                      ),
                     ),
-                  ),
+                    IconButton(
+                      onPressed: _addMemo,
+                      icon: Icon(Icons.send, color: kGreen),
+                    ),
+                  ]),
                 ),
-                IconButton(
-                  onPressed: _addMemo,
-                  icon: Icon(Icons.send, color: kGreen),
-                ),
-              ]),
+              ),
             ],
           ),
         );

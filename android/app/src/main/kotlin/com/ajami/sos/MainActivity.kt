@@ -2,7 +2,6 @@ package com.ajami.sos
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
 import com.ajami.sos.widget.WidgetActions
 import com.ajami.sos.widget.WidgetData
 import com.ajami.sos.widget.WidgetKeys
@@ -18,11 +17,8 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Blocks screenshots and blank recent-app thumbnails.
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
+        // FLAG_SECURE was removed on purpose: it blanked the recent-apps
+        // thumbnail and looked like the app was hiding itself.
         pendingAction = actionFrom(intent)
     }
 
