@@ -156,9 +156,10 @@ class Db {
     return rows.map(Note.fromMap).toList();
   }
 
+  /// كل الميمو، الأحدث أولاً — الودجت يعرض أحدث ما كتبه المستخدم.
   Future<List<Note>> allNotes() async {
     final db = await _database;
-    final rows = await db.query('notes', orderBy: 'day, id');
+    final rows = await db.query('notes', orderBy: 'day DESC, id DESC');
     return rows.map(Note.fromMap).toList();
   }
 
