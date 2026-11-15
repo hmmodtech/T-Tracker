@@ -72,5 +72,4 @@ jobs:
           name: T-Tracker-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          if-no-files-found: error
           retention-days: 90
