@@ -9,6 +9,9 @@ DateTime nextWorkday(DateTime d) {
   return x;
 }
 
+/// رقم نسخة الخطة الحالية. ارفعه عند تغيير التواريخ لإعادة البناء تلقائياً.
+const currentPlanVersion = 2;
+
 /// تاريخ بداية الخطة الافتراضي: 15 تشرين الثاني، وتنتهي 13 كانون الأول.
 const defaultMissionStart = '2026-11-15';
 

@@ -26,6 +26,10 @@ class AppState extends ChangeNotifier {
   bool seeded = false;
   String missionStart = _defaultStart;
 
+  /// نسخة خطة المهام. رفعها يعيد بناء الخطة على الأجهزة القديمة.
+  /// v1 = بداية 16-11 بلا نهاية، v2 = 15-11 → 13-12.
+  int planVersion = 0;
+
   /// حجم خط الودجت (sp) — 10..18
   double widgetTextScale = 1.0;
 
@@ -52,6 +56,7 @@ class AppState extends ChangeNotifier {
     panicOnBackground = false;
     seeded = _p.getBool('seeded') ?? false;
     missionStart = _p.getString('missionStart') ?? _defaultStart;
+    planVersion = _p.getInt('planVersion') ?? 0;
     widgetTextScale = _p.getDouble('widgetTextScale') ?? 1.0;
     widgetOpacity = _p.getDouble('widgetOpacity') ?? 0.85;
     locked = appLock;
@@ -60,14 +65,17 @@ class AppState extends ChangeNotifier {
   /// t('Save', 'حفظ') ترجع النص حسب اللغة الحالية
   String t(String en, String ar) => isArabic ? ar : en;
 
-  void _put(String key, Object value, void Function() assign) {
+  void _put(String key, Object value, void Function() assign,
+      {bool persist = true}) {
     assign();
-    if (value is bool) {
+    if (persist && value is bool) {
       _p.setBool(key, value);
-    } else if (value is double) {
+    } else if (persist && value is double) {
       _p.setDouble(key, value);
-    } else if (value is String) {
+    } else if (persist && value is String) {
       _p.setString(key, value);
+    } else if (persist && value is int) {
+      _p.setInt(key, value);
     }
     notifyListeners();
   }
@@ -80,7 +88,8 @@ class AppState extends ChangeNotifier {
   void setRain(bool v) => _put('rain', v, () => matrixRain = v);
   void setPhotoBg(bool v) => _put('photoBg', v, () => photoBackground = v);
   void setLightMode(bool v) => _put('lightMode', v, () => lightMode = v);
-  void setPanicBg(bool v) => _put('panicBg', v, () => panicOnBackground = v);
+  // Intentional no-op: leaving the app must not hide/lock the screen any more.
+  void setPanicBg(bool v) {}
   void setWidgetTextScale(double v) =>
       _put('widgetTextScale', v, () => widgetTextScale = v);
   void setWidgetOpacity(double v) =>
@@ -88,9 +97,16 @@ class AppState extends ChangeNotifier {
   void setLock(bool v) => _put('lock', v, () {
         appLock = v;
         locked = false;
-      });
-  void setMissionStart(String v) => _put('missionStart', v, () => missionStart = v);
+      }, persist: false);
+  /// تغيير بداية الخطة يعيد بناءها في الإقلاع التالي.
+  void setMissionStart(String v) => _put('missionStart', v, () {
+        missionStart = v;
+        planVersion = 0;
+      }, persist: false);
   void markSeeded() => _put('seeded', true, () => seeded = true);
+
+  /// يعلّم الخطة كنسخة [v] بعد إعادة بنائها.
+  void markPlanVersion(int v) => _put('planVersion', v, () => planVersion = v);
 
   void setPanic(bool v) {
     panicActive = v;

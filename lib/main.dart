@@ -110,7 +110,9 @@ class _BootGateState extends State<BootGate> {
       await initializeDateFormatting('ar');
       await appState.load();
       await _step('notifications', Bell.init);
-      if (!appState.seeded) {
+      // Seed on first launch, and re-seed once when the plan definition moves
+      // to a newer window (older installs keep a plan without an end date).
+      if (!appState.seeded || appState.planVersion < currentPlanVersion) {
         await _step('seed', () async {
           await Db.instance.replaceMission(
             missionFrom(
@@ -119,6 +121,7 @@ class _BootGateState extends State<BootGate> {
             ),
           );
           appState.markSeeded();
+          appState.markPlanVersion(currentPlanVersion);
         });
       }
       // Re-scheduling bells is the heaviest and most failure-prone step, so it
