@@ -291,7 +291,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   )),
                   _card(ListTile(
-                    secondary: Icon(Icons.shield_outlined, color: kRed),
+                    leading: Icon(Icons.shield_outlined, color: kRed),
                     title: Text(s('Panic screen now', 'شاشة الطوارئ الآن')),
                     subtitle: Text(s(
                       'Hides the app instantly — use it only when needed',
