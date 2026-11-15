@@ -58,11 +58,43 @@ class _MonthCalendarState extends State<MonthCalendar> {
     widget.onMonthChanged(m);
   }
 
-  /// المهام الظاهرة في يوم معيّن (يحترم التكرار).
-  List<Task> _tasksOn(DateTime d) => widget.tasks.where((t) => t.occursOn(d)).toList();
+  /// خريطة يوم → مهامه، تُبنى مرة واحدة لكل بناء بدل مسح كل المهام
+  /// ٤٢ مرة (مرة لكل خلية في الشبكة).
+  Map<String, List<Task>>? _byDayCache;
+  int? _byDayTasksLen;
+  int? _byDayMemoLen;
+  DateTime? _byDayMonth;
+  Set<String> _memoDays = const {};
+
+  Map<String, List<Task>> _byDay() {
+    if (_byDayCache != null &&
+        _byDayTasksLen == widget.tasks.length &&
+        _byDayMemoLen == widget.memosByDay.length &&
+        _byDayMonth == _month) {
+      return _byDayCache!;
+    }
+    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
+    final map = <String, List<Task>>{};
+    for (var i = 1; i <= daysInMonth; i++) {
+      final d = DateTime(_month.year, _month.month, i);
+      final key = dayKey(d);
+      for (final t in widget.tasks) {
+        if (t.occursOn(d)) (map[key] ??= <Task>[]).add(t);
+      }
+    }
+    _byDayCache = map;
+    _byDayTasksLen = widget.tasks.length;
+    _byDayMemoLen = widget.memosByDay.length;
+    _byDayMonth = _month;
+    // Also refresh the per-day "memo exists" check while we are here.
+    _memoDays = widget.memosByDay.keys.toSet();
+    return map;
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Warms the day→tasks cache and the memo set before the grid paints.
+    _byDay();
     final ar = appState.isArabic;
     final locale = ar ? 'ar' : 'en_US';
 
@@ -153,9 +185,9 @@ class _MonthCalendarState extends State<MonthCalendar> {
     final day = DateTime(_month.year, _month.month, index + 1);
     final selected = sameDay(day, widget.selectedDay);
     final isToday = sameDay(day, DateTime.now());
-    final tasks = _tasksOn(day);
     final key = dayKey(day);
-    final hasMemo = (widget.memosByDay[key] ?? const []).isNotEmpty;
+    final tasks = _byDay()[key] ?? const <Task>[];
+    final hasMemo = _memoDays.contains(key);
 
     // حتى ٤ نقاط: ملوّنة بحسب الفئة، ومملوءة إذا أُنجزت.
     final dots = tasks.take(4).toList();
