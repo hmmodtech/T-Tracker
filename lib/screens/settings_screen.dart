@@ -395,9 +395,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       bootLog.isEmpty
                           ? s('No problems recorded', 'لا توجد مشاكل مسجّلة')
                           : s('${bootLog.length} entry(s)', '${bootLog.length} سجل'),
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      style: TextStyle(color: kMuted, fontSize: 12),
                     ),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                    trailing: Icon(Icons.chevron_right, color: kMuted),
                     onTap: () => _showLog(),
                   )),
                   _card(ListTile(
@@ -405,7 +405,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: Text(s('Re-apply reminders', 'إعادة ضبط الإشعارات')),
                     subtitle: Text(
                       s('Run if bells stop arriving', 'شغّلها إذا توقفت الإشعارات'),
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      style: TextStyle(color: kMuted, fontSize: 12),
                     ),
                     onTap: () => _run(() async {
                       await Bell.resyncAll();
@@ -438,7 +438,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               bootLog.isEmpty
                   ? s('Everything started cleanly.', 'كل شيء بدأ بدون أخطاء.')
                   : bootLog.join('\n\n'),
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: TextStyle(color: kMuted, fontSize: 12),
             ),
           ),
         ),

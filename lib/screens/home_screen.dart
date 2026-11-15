@@ -248,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen>
               Checkbox(
                 value: done,
                 activeColor: kGreen,
-                checkColor: Colors.black,
+                checkColor: isLight ? Colors.white : Colors.black,
                 onChanged: (_) => _toggle(t),
               ),
               Expanded(
@@ -287,8 +287,8 @@ class _HomeScreenState extends State<HomeScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 6, 8, 0),
                 child: Text(t.details(ar),
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 12, height: 1.35)),
+                    style: TextStyle(
+                        color: kMuted, fontSize: 12, height: 1.35)),
               ),
             for (var i = 0; i < t.checklist.length; i++)
               InkWell(
@@ -490,7 +490,7 @@ class _HomeScreenState extends State<HomeScreen>
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Text(s.t('No tasks for this day', 'لا توجد مهام لهذا اليوم'),
-                      style: const TextStyle(color: Colors.white38)),
+                      style: TextStyle(color: kMuted)),
                 ),
               ...dayTasks.map(_taskCard),
 

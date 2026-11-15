@@ -197,6 +197,7 @@ class WidgetBridge {
     }
 
     // تقويم الودجت: تفاصيل كل يوم لخمسة أشهر (شهر سابق ← ٣ أشهر قادمة)
+    final memoDays = <String>{for (final n in memos) dayKey(n.day)};
     final days = <String, Object?>{};
     final firstOfMonth = DateTime(today.year, today.month, 1);
     for (var i = -31; i < 130; i++) {
@@ -206,7 +207,7 @@ class WidgetBridge {
       for (final t in tasks) {
         if (t.occursOn(d)) dayTasks.add(t);
       }
-      final hasMemo = memos.any((n) => dayKey(n.day) == key);
+      final hasMemo = memoDays.contains(key);
       if (dayTasks.isEmpty && !hasMemo) continue;
       var dDone = 0;
       for (final t in dayTasks) {

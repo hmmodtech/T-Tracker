@@ -95,6 +95,12 @@ class MemoWidgetProvider : AppWidgetProvider() {
       views.setTextViewTextSize(
         R.id.w_input, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
       )
+      views.setTextViewTextSize(
+        R.id.w_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
+      )
+      views.setTextViewTextSize(
+        R.id.w_empty, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(11f, scale),
+      )
 
       views.setOnClickPendingIntent(R.id.w_send, sendIntent(context))
       views.setOnClickPendingIntent(R.id.w_input, sendIntent(context))

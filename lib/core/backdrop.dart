@@ -22,6 +22,12 @@ class AppBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     final light = isLight;
     final showPhoto = appState.photoBackground;
+    // Decode the photo at screen width instead of its full 1080x1935 size:
+    // that alone saves ~3-4 MB of heap on small phones.
+    final media = MediaQuery.maybeOf(context);
+    final dpr = media?.devicePixelRatio ?? 2.0;
+    final width = media?.size.width ?? 400;
+    final cacheWidth = (width * dpr).round().clamp(360, 1080);
 
     return Stack(
       fit: StackFit.expand,
@@ -31,9 +37,13 @@ class AppBackdrop extends StatelessWidget {
 
         // 2) الصورة نفسها — تُحمّل مرة واحدة وتبقى في الكاش
         if (showPhoto)
-          const RepaintBoundary(
+          RepaintBoundary(
             child: Image(
-              image: AssetImage('assets/images/night_earth.jpg'),
+              image: ResizeImage(
+                const AssetImage('assets/images/night_earth.jpg'),
+                width: cacheWidth,
+                policy: ResizeImagePolicy.fit,
+              ),
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
               gaplessPlayback: true,

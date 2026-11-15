@@ -106,9 +106,10 @@ class _StatsScreenState extends State<StatsScreen> {
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
                 color: color,
-                shadows: [
-                  Shadow(color: color.withAlpha(150), blurRadius: 14),
-                ],
+                // No bloom in light mode — it smudges thin glyphs.
+                shadows: isLight
+                    ? null
+                    : [Shadow(color: color.withAlpha(150), blurRadius: 14)],
               ),
             ),
             Text(label,

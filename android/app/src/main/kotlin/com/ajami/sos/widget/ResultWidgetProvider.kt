@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.util.TypedValue
 import android.widget.RemoteViews
 import com.ajami.sos.MainActivity
 import com.ajami.sos.R
@@ -44,6 +45,8 @@ class ResultWidgetProvider : AppWidgetProvider() {
       val views = RemoteViews(context.packageName, R.layout.widget_result)
       val data = WidgetData.load(context)
       val res = context.resources
+      val scale = WidgetStyle.scale(data)
+      WidgetStyle.apply(context, views, data)
 
       views.setTextViewText(R.id.w_big, "${data.rateToday}%")
       views.setTextViewText(
@@ -58,6 +61,20 @@ class ResultWidgetProvider : AppWidgetProvider() {
         if (data.scheduledYesterday == 0) "—" else "${data.doneYesterday}/${data.scheduledYesterday}",
       )
       views.setTextViewText(R.id.w_week, "${data.rate7}%")
+
+      // Honour the widget font-size setting.
+      views.setTextViewTextSize(
+        R.id.w_big, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(34f, scale),
+      )
+      views.setTextViewTextSize(
+        R.id.w_count, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
+      )
+      views.setTextViewTextSize(
+        R.id.w_yesterday, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
+      )
+      views.setTextViewTextSize(
+        R.id.w_week, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(20f, scale),
+      )
 
       views.setOnClickPendingIntent(R.id.w_refresh, refreshIntent(context))
       views.setOnClickPendingIntent(R.id.widget_root, openApp(context))
