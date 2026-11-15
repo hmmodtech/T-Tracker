@@ -38,9 +38,20 @@ object WidgetData {
     val isPrivate: Boolean,
     val time: String?,
     val day: String = "",
+    val isMission: Boolean = false,
   )
 
   data class Memo(val text: String, val day: String)
+
+  /** One calendar cell: how many tasks, how many done, whether a memo exists. */
+  data class Day(
+    val key: String,
+    val total: Int,
+    val done: Int,
+    val hasMemo: Boolean,
+    val titles: List<String> = emptyList(),
+    val doneFlags: List<Boolean> = emptyList(),
+  )
 
   data class Snapshot(
     val today: List<Task> = emptyList(),
@@ -52,6 +63,11 @@ object WidgetData {
     val done7: Int = 0,
     val scheduled7: Int = 0,
     val memos: List<Memo> = emptyList(),
+    val upcoming: List<Task> = emptyList(),
+    val days: Map<String, Day> = emptyMap(),
+    val textScale: Float = 1f,
+    val opacity: Float = 0.85f,
+    val arabic: Boolean = false,
     val generatedAt: Long = 0,
     val hasAppData: Boolean = false,
   ) {
@@ -96,6 +112,7 @@ object WidgetData {
           isPrivate = t.optBoolean("private"),
           time = t.optString("time").takeIf { it.isNotEmpty() },
           day = t.optString("day"),
+          isMission = t.optBoolean("isMission"),
         )
       }
     }
@@ -105,9 +122,41 @@ object WidgetData {
         Memo(m.optString("text"), m.optString("day"))
       }
     }
+    val daysObj = o.optJSONObject("days")
+    val days = LinkedHashMap<String, Day>()
+    if (daysObj != null) {
+      for (key in daysObj.keys()) {
+        val d = daysObj.optJSONObject(key) ?: continue
+        val titles = mutableListOf<String>()
+        val flags = mutableListOf<Boolean>()
+        val arr = d.optJSONArray("t")
+        val dArr = d.optJSONArray("done")
+        if (arr != null) {
+          for (i in 0 until arr.length()) {
+            titles += arr.optString(i)
+            flags += dArr?.optBoolean(i) ?: false
+          }
+        }
+        days[key] = Day(
+          key = key,
+          total = d.optInt("n"),
+          done = d.optInt("d"),
+          hasMemo = d.optInt("m") == 1,
+          titles = titles,
+          doneFlags = flags,
+        )
+      }
+    }
+
+    val settings = o.optJSONObject("settings")
     return Snapshot(
       today = tasks("today"),
       overdue = tasks("overdue"),
+      upcoming = tasks("upcoming"),
+      days = days,
+      textScale = (settings?.optDouble("textScale", 1.0) ?: 1.0).toFloat(),
+      opacity = (settings?.optDouble("opacity", 0.85) ?: 0.85).toFloat(),
+      arabic = settings?.optBoolean("arabic") ?: false,
       doneToday = o.optInt("doneToday"),
       scheduledToday = o.optInt("scheduledToday"),
       doneYesterday = o.optInt("doneYesterday"),

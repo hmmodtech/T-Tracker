@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_list_label">A.Jami SOS — المهام</string>
-    <string name="widget_memo_label">A.Jami SOS — ميمو سريع</string>
-    <string name="widget_result_label">A.Jami SOS — النتيجة</string>
+    <string name="widget_list_label">T-Tracker — المهام</string>
+    <string name="widget_memo_label">T-Tracker — ميمو سريع</string>
+    <string name="widget_result_label">T-Tracker — النتيجة</string>
     <string name="widget_list_desc">مهام اليوم مع مربعات الإنجاز</string>
     <string name="widget_memo_desc">اكتب ميمو سريع من الشاشة الرئيسية</string>
     <string name="widget_result_desc">نتيجة الإنجاز: اليوم، أمس، وهذا الأسبوع</string>
@@ -19,4 +19,11 @@
     <string name="widget_done">منجزة</string>
     <string name="widget_save">حفظ</string>
     <string name="widget_cancel">إلغاء</string>
+    <string name="widget_calendar_label">T-Tracker — التقويم</string>
+    <string name="widget_calendar_desc">تقويم شهري مع مهامك ومذكراتك</string>
+    <string name="widget_cal_empty">لا شيء مجدول</string>
+    <string name="widget_cal_tasks">مهام</string>
+    <string name="widget_settings_title">إعدادات الودجت</string>
+    <string name="widget_font_scale">حجم خط الودجت</string>
+    <string name="widget_panel_opacity">شفافية لوحة الودجت</string>
 </resources>

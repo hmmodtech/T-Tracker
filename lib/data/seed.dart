@@ -9,12 +9,23 @@ DateTime nextWorkday(DateTime d) {
   return x;
 }
 
-/// 20 أيام دوام (الأحد–الخميس) ابتداءً من [start]
-List<Task> missionFrom(DateTime start) {
+/// تاريخ بداية الخطة الافتراضي: 15 تشرين الثاني، وتنتهي 13 كانون الأول.
+const defaultMissionStart = '2026-11-15';
+
+/// النطاق المعروض في التقويم والودجت لهذه الخطة.
+const defaultMissionEnd = '2026-12-13';
+
+/// 20 يوم دوام (الأحد–الخميس) موزّعة على الفترة [start] → [end].
+/// كل مهمة تحمل تاريخ يومها الفعلي + نافذة تكرار تنتهي في [end]،
+/// لذلك تظهر مرة واحدة في يومها الصحيح ولا تتكرر بعد نهاية الخطة.
+List<Task> missionFrom(DateTime start, {DateTime? end}) {
   var day = nextWorkday(start);
+  final last = dateOnly(end ?? DateTime.parse(defaultMissionEnd));
   final now = DateTime.now();
   final out = <Task>[];
   for (final m in _mission) {
+    // لا نتجاوز نهاية الخطة حتى لو طالت الأيام.
+    if (day.isAfter(last)) break;
     out.add(Task(
       titleEn: m[0],
       titleAr: m[1],
@@ -23,6 +34,7 @@ List<Task> missionFrom(DateTime start) {
       category: m[4],
       date: day,
       isMission: true,
+      until: last,
       updatedAt: now,
     ));
     day = nextWorkday(DateTime(day.year, day.month, day.day + 1));

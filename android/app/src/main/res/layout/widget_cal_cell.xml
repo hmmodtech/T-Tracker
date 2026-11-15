@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A single day: number + up to three task dots and a memo dot -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/cell_root"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:paddingTop="1dp"
+    android:paddingBottom="1dp">
+
+    <TextView
+        android:id="@+id/cell_day"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:textColor="@color/widget_text"
+        android:textSize="11sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <TextView
+            android:id="@+id/cell_dot1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="•"
+            android:textColor="@color/widget_green"
+            android:textSize="7sp"
+            android:includeFontPadding="false" />
+
+        <TextView
+            android:id="@+id/cell_dot2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="•"
+            android:textColor="@color/widget_aqua"
+            android:textSize="7sp"
+            android:includeFontPadding="false"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/cell_dot3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="•"
+            android:textColor="@color/widget_amber"
+            android:textSize="7sp"
+            android:includeFontPadding="false"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/cell_memo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="·"
+            android:textColor="@color/widget_muted"
+            android:textSize="9sp"
+            android:includeFontPadding="false"
+            android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

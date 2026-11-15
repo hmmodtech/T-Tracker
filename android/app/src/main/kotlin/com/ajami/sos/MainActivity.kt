@@ -83,6 +83,11 @@ class MainActivity : FlutterFragmentActivity() {
                     WidgetActions.refreshAll(this)
                     result.success(null)
                 }
+                // Font size / opacity changed from the settings screen.
+                "applySettings" -> {
+                    WidgetActions.refreshAll(this)
+                    result.success(null)
+                }
                 // Which screen the user asked for by tapping a widget.
                 "consumeAction" -> {
                     val action = pendingAction
@@ -100,6 +105,7 @@ class MainActivity : FlutterFragmentActivity() {
     private fun actionFrom(intent: Intent?): String? = when (intent?.action) {
         "com.ajami.sos.NEW_TASK" -> "new_task"
         "com.ajami.sos.PULL_MEMOS" -> "pull_memos"
+        "com.ajami.sos.WIDGET_SETTINGS" -> "widget_settings"
         else -> null
     }
 

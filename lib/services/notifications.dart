@@ -125,7 +125,7 @@ class Bell {
 
       await _plugin.zonedSchedule(
         _digestId,
-        'A.Jami SOS',
+        'T-Tracker',
         appState.t("Open the app to see today's tasks",
             'افتح التطبيق لتشوف مهام اليوم'),
         at,
@@ -147,7 +147,7 @@ class Bell {
       if (!_ready) return;
       await _plugin.show(
         0,
-        'A.Jami SOS',
+        'T-Tracker',
         appState.t('Test notification works', 'الإشعار التجريبي شغّال'),
         _details,
       );

@@ -1,6 +1,8 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// بداية خطة المهام الافتراضية (15 تشرين الثاني).
+const _defaultStart = '2026-11-15';
 
 final appState = AppState();
 
@@ -8,17 +10,30 @@ final appState = AppState();
 class AppState extends ChangeNotifier {
   bool isArabic = false;
   double cardOpacity = 0.85; // 0.3 – 1.0
-  double textScale = 1.0;    // 0.8 – 1.4
+  double textScale = 1.0; // 0.8 – 1.4
   bool notificationsOn = true;
   bool morningBriefing = true;
   bool matrixRain = true;
+
+  /// خلفية الأرض الليلية (الصورة المرفقة). تُرسم بشفافية فوقها البطاقات.
+  bool photoBackground = true;
+
+  /// الوضع الفاتح المريح للعين.
+  bool lightMode = false;
+
   bool appLock = false;
   bool panicOnBackground = false;
   bool seeded = false;
-  String missionStart = '2026-11-16';
+  String missionStart = _defaultStart;
+
+  /// حجم خط الودجت (sp) — 10..18
+  double widgetTextScale = 1.0;
+
+  /// شفافية لوحة الودجت — 0.35..0.95
+  double widgetOpacity = 0.85;
 
   bool panicActive = false; // شاشة سوداء فورية
-  bool locked = false;      // مطلوب بصمة / PIN
+  bool locked = false; // مطلوب بصمة / PIN
 
   late SharedPreferences _p;
 
@@ -29,11 +44,16 @@ class AppState extends ChangeNotifier {
     textScale = _p.getDouble('textScale') ?? 1.0;
     notificationsOn = _p.getBool('notifs') ?? true;
     morningBriefing = _p.getBool('briefing') ?? true;
-    matrixRain = _p.getBool('rain') ?? true;
+    matrixRain = _p.getBool('rain') ?? false;
+    photoBackground = _p.getBool('photoBg') ?? true;
+    lightMode = _p.getBool('lightMode') ?? false;
     appLock = _p.getBool('lock') ?? false;
-    panicOnBackground = _p.getBool('panicBg') ?? false;
+    // الخروج من التطبيق لم يعد يخفي الشاشة.
+    panicOnBackground = false;
     seeded = _p.getBool('seeded') ?? false;
-    missionStart = _p.getString('missionStart') ?? '2026-11-16';
+    missionStart = _p.getString('missionStart') ?? _defaultStart;
+    widgetTextScale = _p.getDouble('widgetTextScale') ?? 1.0;
+    widgetOpacity = _p.getDouble('widgetOpacity') ?? 0.85;
     locked = appLock;
   }
 
@@ -58,7 +78,13 @@ class AppState extends ChangeNotifier {
   void setNotifs(bool v) => _put('notifs', v, () => notificationsOn = v);
   void setBriefing(bool v) => _put('briefing', v, () => morningBriefing = v);
   void setRain(bool v) => _put('rain', v, () => matrixRain = v);
+  void setPhotoBg(bool v) => _put('photoBg', v, () => photoBackground = v);
+  void setLightMode(bool v) => _put('lightMode', v, () => lightMode = v);
   void setPanicBg(bool v) => _put('panicBg', v, () => panicOnBackground = v);
+  void setWidgetTextScale(double v) =>
+      _put('widgetTextScale', v, () => widgetTextScale = v);
+  void setWidgetOpacity(double v) =>
+      _put('widgetOpacity', v, () => widgetOpacity = v);
   void setLock(bool v) => _put('lock', v, () {
         appLock = v;
         locked = false;
@@ -76,4 +102,3 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 }
-

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_list_label">A.Jami SOS — Tasks</string>
-    <string name="widget_memo_label">A.Jami SOS — Quick memo</string>
-    <string name="widget_result_label">A.Jami SOS — Result</string>
+    <string name="widget_list_label">T-Tracker — Tasks</string>
+    <string name="widget_memo_label">T-Tracker — Quick memo</string>
+    <string name="widget_result_label">T-Tracker — Result</string>
     <string name="widget_list_desc">Today\'s task list with checkboxes</string>
     <string name="widget_memo_desc">Write a quick memo straight from the home screen</string>
     <string name="widget_result_desc">Completion result: today, yesterday and this week</string>
@@ -19,4 +19,11 @@
     <string name="widget_done">done</string>
     <string name="widget_save">Save</string>
     <string name="widget_cancel">Cancel</string>
+    <string name="widget_calendar_label">T-Tracker — Calendar</string>
+    <string name="widget_calendar_desc">Month calendar with your tasks and memos</string>
+    <string name="widget_cal_empty">nothing planned</string>
+    <string name="widget_cal_tasks">tasks</string>
+    <string name="widget_settings_title">Widget settings</string>
+    <string name="widget_font_scale">Widget font size</string>
+    <string name="widget_panel_opacity">Widget panel opacity</string>
 </resources>

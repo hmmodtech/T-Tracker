@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.view.View
+import android.util.TypedValue
 import android.widget.RemoteViews
 import com.ajami.sos.MainActivity
 import com.ajami.sos.R
@@ -67,21 +68,33 @@ class MemoWidgetProvider : AppWidgetProvider() {
 
       views.removeAllViews(R.id.w_rows)
 
-      // Local queue first (newest on top), then memos stored in the database.
-      val local = WidgetData.localMemos(context)
-      val fromDb = WidgetData.load(context).memos
-      val merged = (local + fromDb).distinctBy { it.text }.take(4)
+      val data = WidgetData.load(context)
+      val scale = WidgetStyle.scale(data)
+      WidgetStyle.apply(context, views, data)
 
-      if (merged.isEmpty()) {
-        views.setViewVisibility(R.id.w_empty, View.VISIBLE)
-      } else {
-        views.setViewVisibility(R.id.w_empty, View.GONE)
-      }
+      // Queued memos first (typed on the home screen, not yet in the DB), then
+      // every memo stored in the app — not just today's.
+      val local = WidgetData.localMemos(context)
+      val fromDb = data.memos
+      val merged = (local + fromDb)
+        .distinctBy { it.text.trim() }
+        .take(5)
+
+      views.setViewVisibility(
+        R.id.w_empty,
+        if (merged.isEmpty()) View.VISIBLE else View.GONE,
+      )
       for (memo in merged) {
         val row = RemoteViews(context.packageName, R.layout.widget_memo_row)
         row.setTextViewText(R.id.row_title, memo.text)
+        row.setTextViewTextSize(
+          R.id.row_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(11f, scale),
+        )
         views.addView(R.id.w_rows, row)
       }
+      views.setTextViewTextSize(
+        R.id.w_input, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
+      )
 
       views.setOnClickPendingIntent(R.id.w_send, sendIntent(context))
       views.setOnClickPendingIntent(R.id.w_input, sendIntent(context))

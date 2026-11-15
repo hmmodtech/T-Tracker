@@ -30,7 +30,7 @@ class Db {
     return openDatabase(
       p.join(await getDatabasesPath(), 'sos_secure.db'),
       password: key,
-      version: 1,
+      version: 2,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE tasks (
@@ -42,6 +42,7 @@ class Db {
             priority INTEGER NOT NULL DEFAULT 1,
             is_private INTEGER NOT NULL DEFAULT 0,
             recurrence TEXT NOT NULL DEFAULT 'none',
+            until TEXT,
             checklist TEXT,
             is_mission INTEGER NOT NULL DEFAULT 0,
             google_id TEXT, ms_id TEXT,
@@ -54,6 +55,12 @@ class Db {
           CREATE TABLE notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             day TEXT NOT NULL, text TEXT NOT NULL)''');
+      },
+      // v2: recurring windows (the pre-defined plan ends on a fixed day).
+      onUpgrade: (db, from, to) async {
+        if (from < 2) {
+          await db.execute('ALTER TABLE tasks ADD COLUMN until TEXT');
+        }
       },
     );
   }

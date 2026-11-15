@@ -135,19 +135,19 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: kGreen))
+            ? Center(child: CircularProgressIndicator(color: kGreen))
             : !hasQuery
                 ? Center(
                     child: Text(
                       s('Type a word to search', 'اكتب كلمة للبحث'),
-                      style: const TextStyle(color: kDimGreen),
+                      style: TextStyle(color: kDimGreen),
                     ),
                   )
                 : hits.isEmpty
                     ? Center(
                         child: Text(
                           s('No results', 'ما في نتائج'),
-                          style: const TextStyle(color: kDimGreen),
+                          style: TextStyle(color: kDimGreen),
                         ),
                       )
                     : Column(
@@ -158,7 +158,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               alignment: AlignmentDirectional.centerStart,
                               child: Text(
                                 '${hits.length} ${s('results', 'نتيجة')}',
-                                style: const TextStyle(color: kDimGreen),
+                                style: TextStyle(color: kDimGreen),
                               ),
                             ),
                           ),
@@ -174,7 +174,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                     leading: Icon(h.icon, color: h.color),
                                     title: Text(h.title),
                                     subtitle: Text(h.subtitle),
-                                    trailing: const Icon(Icons.chevron_right, color: kDimGreen),
+                                    trailing: Icon(Icons.chevron_right, color: kDimGreen),
                                     // Returns the chosen day to HomeScreen, which selects it.
                                     onTap: () => Navigator.pop<DateTime>(context, h.day),
                                   ),

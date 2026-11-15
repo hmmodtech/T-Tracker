@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'core/app_state.dart';
+import 'core/backdrop.dart';
 import 'core/boot_log.dart';
 import 'core/matrix_rain.dart';
 import 'core/theme.dart';
@@ -30,7 +31,7 @@ void main() {
   };
 
   // Dark status/navigation bars to match the midnight-blue HUD.
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
@@ -52,8 +53,8 @@ class SosApp extends StatelessWidget {
       listenable: appState,
       builder: (context, _) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'A.Jami SOS',
-        theme: matrixTheme(),
+        title: 'T-Tracker',
+        theme: appTheme(),
         locale: Locale(appState.isArabic ? 'ar' : 'en'),
         supportedLocales: const [Locale('en'), Locale('ar')],
         localizationsDelegates: const [
@@ -65,23 +66,15 @@ class SosApp extends StatelessWidget {
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(appState.textScale),
           ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: appState.matrixRain
-                    ? const MatrixRain()
-                    : const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: Alignment.topCenter,
-                            radius: 1.2,
-                            colors: [Color(0xFF0A1830), kBlack],
-                          ),
-                        ),
-                      ),
-              ),
-              AppGate(child: child!),
-            ],
+          // The sculpted photo backdrop sits behind every screen; screens
+          // themselves are transparent so the image shows through.
+          child: AppBackdrop(
+            child: Stack(
+              children: [
+                if (appState.matrixRain) const Positioned.fill(child: MatrixRain()),
+                AppGate(child: child!),
+              ],
+            ),
           ),
         ),
         home: const BootGate(),
@@ -119,8 +112,12 @@ class _BootGateState extends State<BootGate> {
       await _step('notifications', Bell.init);
       if (!appState.seeded) {
         await _step('seed', () async {
-          await Db.instance
-              .replaceMission(missionFrom(DateTime.parse(appState.missionStart)));
+          await Db.instance.replaceMission(
+            missionFrom(
+              DateTime.parse(appState.missionStart),
+              end: DateTime.parse(defaultMissionEnd),
+            ),
+          );
           appState.markSeeded();
         });
       }
@@ -176,13 +173,13 @@ class _Splash extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.shield_outlined, color: kGreen, size: 64),
+            Icon(Icons.shield_outlined, color: kGreen, size: 64),
             const SizedBox(height: 20),
             const SizedBox(width: 120, child: GlowBar(value: 0.6, height: 3)),
             const SizedBox(height: 14),
             Text(
-              'A.Jami SOS',
-              style: const TextStyle(
+              'T-Tracker',
+              style: TextStyle(
                 color: kGreen,
                 letterSpacing: 3,
                 fontWeight: FontWeight.w700,
@@ -219,7 +216,7 @@ class _BootError extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 'Startup error',
                 style: TextStyle(color: kRed, fontSize: 18, fontWeight: FontWeight.bold),
               ),
@@ -273,11 +270,9 @@ class _AppGateState extends State<AppGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_authing) return;
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      if (appState.panicOnBackground) appState.setPanic(true);
-      if (appState.appLock) appState.setLocked(true);
-    } else if (state == AppLifecycleState.resumed && appState.locked) {
+    // Leaving the app no longer hides the screen or re-locks it: the user
+    // asked for that behaviour to be removed. Only an explicit lock applies.
+    if (state == AppLifecycleState.resumed && appState.locked && !_authing) {
       _unlock();
     }
   }
@@ -333,7 +328,7 @@ class _AppGateState extends State<AppGate> with WidgetsBindingObserver {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.lock_outline, color: kGreen, size: 56),
+                    Icon(Icons.lock_outline, color: kGreen, size: 56),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: _unlock,

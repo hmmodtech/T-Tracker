@@ -24,7 +24,7 @@ String _esc(String s) => s
 /// ملف ICS يُفتح في Google Calendar و Outlook مباشرة. المهام الخاصة لا تُصدَّر.
 String toIcs(List<Task> tasks) {
   final b = StringBuffer(
-      'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A.Jami SOS//EN\r\nCALSCALE:GREGORIAN\r\n');
+      'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//T-Tracker//EN\r\nCALSCALE:GREGORIAN\r\n');
   for (final t in tasks.where((t) => !t.isPrivate)) {
     final next = DateTime(t.date.year, t.date.month, t.date.day + 1);
     final rule = switch (t.recurrence) {

@@ -18,7 +18,7 @@
         android:maxSdkVersion="28" />
 
     <application
-        android:label="A.Jami SOS"
+        android:label="T-Tracker"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
@@ -61,6 +61,7 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.ajami.sos.widget.TOGGLE" />
+                <action android:name="com.ajami.sos.widget.SETTINGS" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -75,6 +76,7 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.ajami.sos.widget.ADD_MEMO" />
                 <action android:name="com.ajami.sos.widget.REFRESH" />
+                <action android:name="com.ajami.sos.widget.SETTINGS" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -92,6 +94,22 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_result_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CalendarWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_calendar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.ajami.sos.widget.CAL_PREV" />
+                <action android:name="com.ajami.sos.widget.CAL_NEXT" />
+                <action android:name="com.ajami.sos.widget.CAL_DAY" />
+                <action android:name="com.ajami.sos.widget.SETTINGS" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_calendar_info" />
         </receiver>
 
         <!-- Required by flutter_local_notifications to fire and re-schedule bells -->

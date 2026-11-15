@@ -18,14 +18,23 @@ const String _glyphs =
     'ｱｲｳｴｵｶｷｸｹｺﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉ0123456789ABCDEFZ';
 
 /// Tail colours: bright cyan-green nearest the head → aqua → deep teal.
-final List<Color> _tailColors = List<Color>.generate(_trail, (k) {
-  final t = k / _trail; // 0 = head, 1 = end of the trail
-  final alpha = (215 * (1 - t)).round().clamp(0, 255);
-  final base = t < 0.5
-      ? Color.lerp(kGreen, kAqua, t * 2)!
-      : Color.lerp(kAqua, kDimGreen, (t - 0.5) * 2)!;
-  return base.withAlpha(alpha);
-});
+/// Built lazily and rebuilt only when the palette changes (light/dark).
+List<Color>? _tailCache;
+bool? _tailCacheLight;
+
+List<Color> _tailColors() {
+  if (_tailCache != null && _tailCacheLight == isLight) return _tailCache!;
+  _tailCacheLight = isLight;
+  _tailCache = List<Color>.generate(_trail, (k) {
+    final t = k / _trail; // 0 = head, 1 = end of the trail
+    final alpha = (215 * (1 - t)).round().clamp(0, 255);
+    final base = t < 0.5
+        ? Color.lerp(kGreen, kAqua, t * 2)!
+        : Color.lerp(kAqua, kDimGreen, (t - 0.5) * 2)!;
+    return base.withAlpha(alpha);
+  });
+  return _tailCache!;
+}
 
 class MatrixRain extends StatefulWidget {
   const MatrixRain({super.key});
@@ -91,7 +100,7 @@ class _MatrixRainState extends State<MatrixRain> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     // Respect the system "remove animations" accessibility setting.
     if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
-      return const ColoredBox(color: kBlack);
+      return ColoredBox(color: kBlack);
     }
     return LayoutBuilder(builder: (context, c) {
       _height = c.maxHeight;
@@ -126,6 +135,7 @@ class _RainPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final tails = _tailColors();
     if (heads.isEmpty) return;
     // One reusable TextPainter for the whole frame.
     final painter = TextPainter(textDirection: TextDirection.ltr);
@@ -140,14 +150,14 @@ class _RainPainter extends CustomPainter {
         final glyph = _glyphs[(c * 7 + row * 3 + tick) % _glyphs.length];
         // Head is white-hot, the tail fades through cyan-green into aqua,
         // matching the app's neon glow gradient.
-        final tint = _tailColors[k];
+        final tint = tails[k];
         painter.text = TextSpan(
           text: glyph,
           style: TextStyle(
             color: k == 0 ? const Color(0xFFE8FFFA) : tint,
             fontSize: 11,
             shadows: k == 0
-                ? const [Shadow(color: kGreen, blurRadius: 8)]
+                ? [Shadow(color: kGreen, blurRadius: 8)]
                 : null,
           ),
         );

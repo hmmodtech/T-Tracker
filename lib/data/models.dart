@@ -65,6 +65,7 @@ class Task {
   final int priority;       // 0 منخفضة، 1 عادية، 2 عالية
   final bool isPrivate;     // لا تُرسل للتقاويم السحابية
   final String recurrence;  // none | daily | weekly | monthly
+  final DateTime? until;    // آخر يوم للتكرار (شامل) — null = بلا نهاية
   final List<CheckItem> checklist;
   final bool isMission;     // جزء من خطة D1–D20
   final String? googleId;
@@ -83,6 +84,7 @@ class Task {
     this.priority = 1,
     this.isPrivate = false,
     this.recurrence = 'none',
+    this.until,
     this.checklist = const [],
     this.isMission = false,
     this.googleId,
@@ -102,6 +104,8 @@ class Task {
     final d = dateOnly(day);
     final s = dateOnly(date);
     if (d.isBefore(s)) return false;
+    // نافذة التكرار: الخطة تنتهي في [until] ولا تتجاوزها.
+    if (until != null && d.isAfter(dateOnly(until!))) return false;
     return switch (recurrence) {
       'daily' => true,
       'weekly' => d.weekday == s.weekday,
@@ -121,6 +125,7 @@ class Task {
         'priority': priority,
         'is_private': isPrivate ? 1 : 0,
         'recurrence': recurrence,
+        'until': until == null ? null : dayKey(until!),
         'checklist': jsonEncode(checklist.map((c) => c.toJson()).toList()),
         'is_mission': isMission ? 1 : 0,
         'google_id': googleId,
@@ -140,6 +145,7 @@ class Task {
         priority: _int(m['priority'], 1),
         isPrivate: _int(m['is_private']) == 1,
         recurrence: m['recurrence'] == null ? 'none' : _text(m['recurrence']),
+        until: m['until'] == null ? null : _date(m['until']),
         checklist: _parseChecklist(m['checklist'] as String?),
         isMission: _int(m['is_mission']) == 1,
         googleId: m['google_id'] as String?,

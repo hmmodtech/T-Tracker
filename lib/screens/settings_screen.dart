@@ -69,7 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
         child: Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             color: kGreen,
             fontWeight: FontWeight.bold,
             letterSpacing: 1.2,
@@ -89,7 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            if (_busy) const LinearProgressIndicator(color: kGreen),
+            if (_busy) LinearProgressIndicator(color: kGreen),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(16),
@@ -143,7 +143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   )),
                   _card(SwitchListTile(
-                    secondary: const Icon(Icons.grain, color: kGreen),
+                    secondary: Icon(Icons.grain, color: kGreen),
                     title: Text(s('Matrix rain background', 'خلفية المطر الرقمي')),
                     value: appState.matrixRain,
                     onChanged: (v) {
@@ -153,7 +153,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   )),
                   _card(SwitchListTile(
-                    secondary: const Icon(Icons.translate, color: kGreen),
+                    secondary: Icon(Icons.translate, color: kGreen),
                     title: Text(s('Arabic language', 'اللغة العربية')),
                     subtitle: Text(s('Off = English', 'مغلق = إنجليزي')),
                     value: appState.isArabic,
@@ -165,22 +165,108 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   )),
 
+                  // ---------- Light mode ----------
+                  _card(SwitchListTile(
+                    secondary: Icon(
+                      appState.lightMode
+                          ? Icons.light_mode
+                          : Icons.dark_mode_outlined,
+                      color: kGreen,
+                    ),
+                    title: Text(s('Light mode', 'الوضع الفاتح')),
+                    subtitle: Text(s(
+                      'Soft daylight colours, easy on the eyes',
+                      'ألوان نهارية هادئة ومريحة للعين',
+                    )),
+                    value: appState.lightMode,
+                    onChanged: (v) {
+                      setState(() {
+                        appState.setLightMode(v);
+                      });
+                    },
+                  )),
+                  _card(SwitchListTile(
+                    secondary: Icon(Icons.image_outlined, color: kGreen),
+                    title: Text(s('Night-earth background', 'خلفية الأرض ليلاً')),
+                    subtitle: Text(s(
+                      'The photo, blended into the theme',
+                      'الصورة مدمجة مع ألوان التطبيق',
+                    )),
+                    value: appState.photoBackground,
+                    onChanged: (v) {
+                      setState(() {
+                        appState.setPhotoBg(v);
+                      });
+                    },
+                  )),
+
+                  // ---------- Widgets ----------
+                  _header(s('HOME-SCREEN WIDGETS', 'ودجت الشاشة الرئيسية')),
+                  _card(Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${s('Widget font size', 'حجم خط الودجت')}: '
+                          '${(appState.widgetTextScale * 100).round()}%',
+                        ),
+                        Slider(
+                          value: appState.widgetTextScale,
+                          min: 0.9,
+                          max: 1.5,
+                          divisions: 6,
+                          onChanged: (v) {
+                            setState(() {
+                              appState.setWidgetTextScale(v);
+                            });
+                          },
+                          onChangeEnd: (_) => WidgetBridge.pushSettings(),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${s('Widget panel opacity', 'شفافية لوحة الودجت')}: '
+                          '${(appState.widgetOpacity * 100).round()}%',
+                        ),
+                        Slider(
+                          value: appState.widgetOpacity,
+                          min: 0.5,
+                          max: 1.0,
+                          divisions: 5,
+                          onChanged: (v) {
+                            setState(() {
+                              appState.setWidgetOpacity(v);
+                            });
+                          },
+                          onChangeEnd: (_) => WidgetBridge.pushSettings(),
+                        ),
+                        Text(
+                          s(
+                            'Applies to the tasks, memo, result and calendar widgets.',
+                            'تُطبّق على ودجت المهام والميمو والنتيجة والتقويم.',
+                          ),
+                          style: TextStyle(fontSize: 12, color: kMuted),
+                        ),
+                      ],
+                    ),
+                  )),
+
                   // ---------- Notifications ----------
                   _header(s('NOTIFICATIONS', 'الإشعارات')),
                   _card(SwitchListTile(
-                    secondary: const Icon(Icons.notifications, color: kGreen),
+                    secondary: Icon(Icons.notifications, color: kGreen),
                     title: Text(s('Task bell reminders', 'تذكيرات الجرس للمهام')),
                     value: appState.notificationsOn,
                     onChanged: (v) => _setNotifs(v),
                   )),
                   _card(SwitchListTile(
-                    secondary: const Icon(Icons.wb_sunny_outlined, color: kGreen),
+                    secondary: Icon(Icons.wb_sunny_outlined, color: kGreen),
                     title: Text(s('Morning briefing (07:30)', 'الملخص الصباحي (07:30)')),
                     value: appState.morningBriefing,
                     onChanged: (v) => _setBriefing(v),
                   )),
                   _card(ListTile(
-                    leading: const Icon(Icons.send, color: kGreen),
+                    leading: Icon(Icons.send, color: kGreen),
                     title: Text(s('Send test notification', 'إرسال إشعار تجريبي')),
                     onTap: () => _run(() async {
                       await Bell.test();
@@ -191,7 +277,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // ---------- Security ----------
                   _header(s('SECURITY', 'الأمان')),
                   _card(SwitchListTile(
-                    secondary: const Icon(Icons.fingerprint, color: kGreen),
+                    secondary: Icon(Icons.fingerprint, color: kGreen),
                     title: Text(s('Lock app with fingerprint or PIN', 'قفل التطبيق ببصمة أو رمز')),
                     subtitle: Text(s(
                       'Locks when you leave the app',
@@ -204,25 +290,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       });
                     },
                   )),
-                  _card(SwitchListTile(
-                    secondary: const Icon(Icons.shield_outlined, color: kGreen),
-                    title: Text(s('Panic screen when leaving app', 'شاشة الطوارئ عند الخروج')),
+                  _card(ListTile(
+                    secondary: Icon(Icons.shield_outlined, color: kRed),
+                    title: Text(s('Panic screen now', 'شاشة الطوارئ الآن')),
                     subtitle: Text(s(
-                      'Shows a black screen in recents',
-                      'تظهر شاشة سوداء في قائمة التطبيقات',
+                      'Hides the app instantly — use it only when needed',
+                      'تخفي التطبيق فوراً — استخدمها عند الحاجة فقط',
                     )),
-                    value: appState.panicOnBackground,
-                    onChanged: (v) {
-                      setState(() {
-                        appState.setPanicBg(v);
-                      });
-                    },
+                    onTap: () => appState.setPanic(true),
                   )),
 
                   // ---------- Calendars ----------
                   _header(s('CALENDARS (PUSH ONLY)', 'التقويمات (إرسال فقط)')),
                   _card(ListTile(
-                    leading: const Icon(Icons.calendar_month, color: kGreen),
+                    leading: Icon(Icons.calendar_month, color: kGreen),
                     title: Text(s('Sync to Google Calendar', 'مزامنة مع تقويم Google')),
                     subtitle: Text(s(
                       'Private tasks are never sent',
@@ -237,7 +318,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }),
                   )),
                   _card(ListTile(
-                    leading: const Icon(Icons.event_note, color: kGreen),
+                    leading: Icon(Icons.event_note, color: kGreen),
                     title: Text(s('Sync to Microsoft 365', 'مزامنة مع Microsoft 365')),
                     subtitle: Text(s(
                       'Private tasks are never sent',
@@ -253,9 +334,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   )),
                   _header(s('REPORTS', 'التقارير')),
                   _card(ListTile(
-                  leading: const Icon(Icons.bar_chart, color: kGreen),
+                  leading: Icon(Icons.bar_chart, color: kGreen),
                   title: Text(s('Completion reports', 'تقارير الإنجاز')),
-                  trailing: const Icon(Icons.chevron_right, color: kDimGreen),
+                  trailing: Icon(Icons.chevron_right, color: kDimGreen),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const StatsScreen()),
@@ -265,7 +346,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // ---------- Data ----------
                   _header(s('DATA', 'البيانات')),
                   _card(ListTile(
-                    leading: const Icon(Icons.event_available, color: kGreen),
+                    leading: Icon(Icons.event_available, color: kGreen),
                     title: Text(s('Export calendar (.ics)', 'تصدير التقويم (.ics)')),
                     subtitle: Text(s(
                       'Opens in Google Calendar or Outlook',
@@ -278,7 +359,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }),
                   )),
                   _card(ListTile(
-                    leading: const Icon(Icons.table_chart_outlined, color: kGreen),
+                    leading: Icon(Icons.table_chart_outlined, color: kGreen),
                     title: Text(s('Export tasks (.csv)', 'تصدير المهام (.csv)')),
                     onTap: () => _run(() async {
                       final tasks = await _shareable();
@@ -287,7 +368,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }),
                   )),
                   _card(ListTile(
-                    leading: const Icon(Icons.backup, color: kGreen),
+                    leading: Icon(Icons.backup, color: kGreen),
                     title: Text(s('Create backup (.json)', 'إنشاء نسخة احتياطية (.json)')),
                     onTap: () => _run(() async {
                       await exportBackup();
@@ -295,7 +376,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }),
                   )),
                   _card(ListTile(
-                    leading: const Icon(Icons.restore, color: kGreen),
+                    leading: Icon(Icons.restore, color: kGreen),
                     title: Text(s('Restore from backup', 'استعادة من نسخة احتياطية')),
                     onTap: () => _run(() async {
                       final ok = await importBackup();
@@ -308,7 +389,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   )),
                   _header(s('Diagnostics', 'التشخيص')),
                   _card(ListTile(
-                    leading: const Icon(Icons.bug_report_outlined, color: kGreen),
+                    leading: Icon(Icons.bug_report_outlined, color: kGreen),
                     title: Text(s('Startup log', 'سجل بدء التشغيل')),
                     subtitle: Text(
                       bootLog.isEmpty
@@ -320,7 +401,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () => _showLog(),
                   )),
                   _card(ListTile(
-                    leading: const Icon(Icons.restart_alt, color: kGreen),
+                    leading: Icon(Icons.restart_alt, color: kGreen),
                     title: Text(s('Re-apply reminders', 'إعادة ضبط الإشعارات')),
                     subtitle: Text(
                       s('Run if bells stop arriving', 'شغّلها إذا توقفت الإشعارات'),
@@ -349,7 +430,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: kSurface,
         title: Text(s('Startup log', 'سجل بدء التشغيل'),
-            style: const TextStyle(color: kGreen, fontSize: 16)),
+            style: TextStyle(color: kGreen, fontSize: 16)),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(

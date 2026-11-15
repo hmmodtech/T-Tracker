@@ -3,8 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:table_calendar/table_calendar.dart';
 import '../core/app_state.dart';
+import '../core/backdrop.dart';
 import '../core/theme.dart';
 import '../data/database.dart';
 import '../data/models.dart';
@@ -12,6 +12,7 @@ import '../services/notifications.dart';
 import '../services/widget_bridge.dart';
 import 'search_screen.dart';
 import 'stats_screen.dart';
+import '../widgets/month_calendar.dart';
 import 'settings_screen.dart';
 import 'task_form_screen.dart';
 
@@ -31,6 +32,9 @@ class _HomeScreenState extends State<HomeScreen>
   Set<String> _done = {};
   List<Note> _notes = [];
 
+  /// yyyy-MM-dd → نصوص الميمو، لعرض نقطة الميمو في التقويم.
+  Map<String, List<String>> _memosByDay = {};
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +50,15 @@ class _HomeScreenState extends State<HomeScreen>
       onMemos: () async {
         await WidgetBridge.applyPending();
         if (mounted) await _load();
+      },
+      // Long-pressing a widget opens the widget settings.
+      onSettings: () async {
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        );
+        if (mounted) _load();
       },
     );
   }
@@ -72,11 +85,16 @@ class _HomeScreenState extends State<HomeScreen>
     final tasks = await db.tasks();
     final done = await db.completionKeys();
     final notes = await db.notesOn(_selected);
+    final allNotes = await db.allNotes();
     if (!mounted) return;
     setState(() {
       _tasks = tasks;
       _done = done;
       _notes = notes;
+      _memosByDay = <String, List<String>>{};
+      for (final n in allNotes) {
+        (_memosByDay[dayKey(n.day)] ??= <String>[]).add(n.text);
+      }
     });
     // Keep the home-screen widgets in step with every change made here.
     WidgetBridge.sync();
@@ -132,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen>
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(appState.t('Delete', 'حذف'),
-                style: const TextStyle(color: kRed)),
+                style: TextStyle(color: kRed)),
           ),
         ],
       ),
@@ -243,15 +261,15 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
               if (t.isPrivate)
-                const Icon(Icons.lock_outline, size: 16, color: kAmber),
+                Icon(Icons.lock_outline, size: 16, color: kAmber),
               if (t.remindAt != null)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(start: 6),
                   child: Row(children: [
-                    const Icon(Icons.notifications_active, size: 16, color: kGreen),
+                    Icon(Icons.notifications_active, size: 16, color: kGreen),
                     const SizedBox(width: 3),
                     Text(DateFormat.Hm().format(t.remindAt!),
-                        style: const TextStyle(color: kGreen, fontSize: 12)),
+                        style: TextStyle(color: kGreen, fontSize: 12)),
                   ]),
                 ),
             ]),
@@ -339,119 +357,112 @@ class _HomeScreenState extends State<HomeScreen>
         final dayTasks = _tasksOn(_selected);
 
         return Scaffold(
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
-            title: const Text('A.JAMI SOS'),
+            title: const Text('T-TRACKER'),
+            // Kept to three controls so the bar stays calm and light.
             actions: [
               IconButton(
-                tooltip: 'Panic',
-                icon: const Icon(Icons.shield_outlined, color: kRed),
-                onPressed: () => s.setPanic(true),
-              ),
-              IconButton(
-                tooltip: s.t('Result', 'النتيجة'),
-                icon: const Icon(Icons.insights_outlined),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const StatsScreen()),
+                tooltip: s.t('Light / dark mode', 'الوضع الفاتح / الداكن'),
+                icon: Icon(
+                  s.lightMode
+                      ? Icons.dark_mode_outlined
+                      : Icons.light_mode_outlined,
+                  color: kGreen,
                 ),
+                onPressed: () => s.setLightMode(!s.lightMode),
               ),
               IconButton(icon: const Icon(Icons.search), onPressed: _search),
-              TextButton(
-                onPressed: () => s.setArabic(!ar),
-                child: Text(ar ? 'EN' : 'AR',
-                    style: const TextStyle(
-                        color: kGreen, fontWeight: FontWeight.w900)),
-              ),
-              IconButton(
-                icon: const Icon(Icons.tune),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                color: kSurface,
+                onSelected: (v) {
+                  if (v == 'result') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const StatsScreen()),
+                    );
+                  } else if (v == 'panic') {
+                    s.setPanic(true);
+                  } else if (v == 'lang') {
+                    s.setArabic(!ar);
+                  } else if (v == 'settings') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'result',
+                    child: Text(s.t('Results', 'النتائج')),
+                  ),
+                  PopupMenuItem(
+                    value: 'settings',
+                    child: Text(s.t('Settings', 'الإعدادات')),
+                  ),
+                  PopupMenuItem(
+                    value: 'lang',
+                    child: Text(ar ? 'English' : 'العربية'),
+                  ),
+                  PopupMenuItem(
+                    value: 'panic',
+                    child: Text(
+                      s.t('Panic screen', 'شاشة الطوارئ'),
+                      style: TextStyle(color: kRed),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
+          // Small round + button instead of the wide extended one.
           floatingActionButton: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: const [
-                BoxShadow(color: Color(0x8825F4C8), blurRadius: 20, spreadRadius: 1),
-                BoxShadow(color: Color(0x4438BDF8), blurRadius: 34, spreadRadius: 2),
-              ],
+              shape: BoxShape.circle,
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: kGreen.withValues(alpha: 0.35),
+                        blurRadius: 14,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : const [
+                      BoxShadow(color: Color(0x8825F4C8), blurRadius: 18),
+                      BoxShadow(color: Color(0x4438BDF8), blurRadius: 30),
+                    ],
             ),
-            child: FloatingActionButton.extended(
+            child: FloatingActionButton(
+              mini: true,
+              tooltip: s.t('New task', 'مهمة جديدة'),
               backgroundColor: kGreen,
-              foregroundColor: kBlack,
+              foregroundColor: isLight ? Colors.white : kBlack,
               elevation: 0,
               onPressed: () => _openForm(),
-              icon: const Icon(Icons.add),
-              label: Text(s.t('NEW TASK', 'مهمة جديدة'),
-                  style: const TextStyle(fontWeight: FontWeight.w900)),
+              child: const Icon(Icons.add, size: 22),
             ),
           ),
           body: ListView(
             padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
             children: [
-              Container(
-                decoration: glass(),
-                padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
-                child: TableCalendar<Task>(
-                  locale: ar ? 'ar' : 'en_US',
-                  firstDay: DateTime(2000),
-                  lastDay: DateTime(2100),
+              GlassPanel(
+                padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+                child: MonthCalendar(
                   focusedDay: _focused,
-                  startingDayOfWeek: StartingDayOfWeek.sunday,
-                  weekendDays: const [DateTime.friday, DateTime.saturday],
-                  selectedDayPredicate: (d) => sameDay(d, _selected),
-                  eventLoader: _tasksOn,
-                  onDaySelected: (sel, foc) {
+                  selectedDay: _selected,
+                  tasks: _tasks,
+                  doneKeys: _done,
+                  memosByDay: _memosByDay,
+                  onSelect: (sel) {
                     setState(() {
                       _selected = dateOnly(sel);
-                      _focused = foc;
+                      _focused = sel;
                     });
                     _load();
                   },
-                  onPageChanged: (f) => _focused = f,
-                  onHeaderTapped: (_) => _pickYearMonth(),
-                  headerStyle: const HeaderStyle(
-                    formatButtonVisible: false,
-                    titleCentered: true,
-                    titleTextStyle:
-                        TextStyle(color: kGreen, fontWeight: FontWeight.w800),
-                    leftChevronIcon: Icon(Icons.chevron_left, color: kGreen),
-                    rightChevronIcon: Icon(Icons.chevron_right, color: kGreen),
-                  ),
-                  daysOfWeekStyle: const DaysOfWeekStyle(
-                    weekdayStyle: TextStyle(color: kMuted, fontSize: 11),
-                    weekendStyle: TextStyle(color: kMutedGreen, fontSize: 11),
-                  ),
-                  calendarStyle: CalendarStyle(
-                    outsideDaysVisible: false,
-                    defaultTextStyle: const TextStyle(color: Color(0xFFD7E6F5)),
-                    weekendTextStyle: const TextStyle(color: kMuted),
-                    selectedDecoration: BoxDecoration(
-                      color: kGreen.withAlpha(45),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: kGreen, width: 1.6),
-                      boxShadow: const [
-                        BoxShadow(color: Color(0x8825F4C8), blurRadius: 14),
-                      ],
-                    ),
-                    selectedTextStyle: const TextStyle(
-                        color: Color(0xFFE8FFFA),
-                        fontWeight: FontWeight.bold,
-                        shadows: kTextBloom),
-                    todayDecoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: kAqua.withAlpha(180)),
-                    ),
-                    todayTextStyle: const TextStyle(color: kAqua),
-                    markerDecoration: const BoxDecoration(
-                      color: kGreen,
-                      shape: BoxShape.circle,
-                      boxShadow: [BoxShadow(color: Color(0xAA25F4C8), blurRadius: 8)],
-                    ),
-                  ),
+                  onMonthChanged: (m) => setState(() => _focused = m),
                 ),
               ),
 
@@ -462,7 +473,7 @@ class _HomeScreenState extends State<HomeScreen>
                     DateFormat.yMMMMEEEEd(ar ? 'ar' : 'en_US')
                         .format(_selected)
                         .toUpperCase(),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: kGreen,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1),
@@ -512,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
                 IconButton(
                   onPressed: _addMemo,
-                  icon: const Icon(Icons.send, color: kGreen),
+                  icon: Icon(Icons.send, color: kGreen),
                 ),
               ]),
             ],

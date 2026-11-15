@@ -184,7 +184,48 @@ class WidgetBridge {
       done7 += doneOn(d);
     }
 
-    final memos = await Db.instance.notesOn(today);
+    // كل الميمو (وليس ميمو اليوم فقط) حتى تظهر في ودجت الميمو دائماً.
+    final memos = await Db.instance.allNotes();
+
+    // المهام القادمة (خطة D1–D20 وغيرها) حتى تظهر قبل يومها.
+    final upcoming = <Task>[];
+    for (var i = 1; i <= 21; i++) {
+      final d = DateTime(today.year, today.month, today.day + i);
+      for (final t in tasks) {
+        if (t.occursOn(d) && !todayList.contains(t)) upcoming.add(t);
+      }
+    }
+
+    // تقويم الودجت: تفاصيل كل يوم لخمسة أشهر (شهر سابق ← ٣ أشهر قادمة)
+    final days = <String, Object?>{};
+    final firstOfMonth = DateTime(today.year, today.month, 1);
+    for (var i = -31; i < 130; i++) {
+      final d = DateTime(firstOfMonth.year, firstOfMonth.month, firstOfMonth.day + i);
+      final key = dayKey(d);
+      final dayTasks = <Task>[];
+      for (final t in tasks) {
+        if (t.occursOn(d)) dayTasks.add(t);
+      }
+      final hasMemo = memos.any((n) => dayKey(n.day) == key);
+      if (dayTasks.isEmpty && !hasMemo) continue;
+      var dDone = 0;
+      for (final t in dayTasks) {
+        final id = t.id;
+        if (id != null && done.contains(doneKey(id, d))) dDone++;
+      }
+      days[key] = {
+        'n': dayTasks.length,
+        'd': dDone,
+        'm': hasMemo ? 1 : 0,
+        't': [
+          for (final t in dayTasks.take(3)) t.title(ar),
+        ],
+        'done': [
+          for (final t in dayTasks.take(3))
+            t.id != null && done.contains(doneKey(t.id!, d)),
+        ],
+      };
+    }
 
     final data = <String, Object?>{
       'generatedAt': DateTime.now().millisecondsSinceEpoch,
@@ -200,9 +241,27 @@ class WidgetBridge {
       'scheduled7': scheduled7,
       'done7': done7,
       'memos': [
-        for (final n in memos.reversed.take(5))
+        for (final n in memos.take(8))
           {'text': n.text, 'day': dayKey(n.day)},
       ],
+      // المهام المجدولة القادمة (تُعرض في ودجت المهام تحت مهام اليوم)
+      'upcoming': [
+        for (final t in upcoming.take(6))
+          if (t.id != null)
+            {
+              ...asJson(t, dateOnly(t.date)),
+              'isMission': t.isMission,
+            },
+      ],
+      // بيانات تقويم الودجت
+      'days': days,
+      'month': '${today.year}-${today.month.toString().padLeft(2, '0')}',
+      // إعدادات الودجت القادمة من التطبيق
+      'settings': {
+        'textScale': appState.widgetTextScale,
+        'opacity': appState.widgetOpacity,
+        'arabic': appState.isArabic,
+      },
     };
 
     final file = File('${dir.path}/$_fileName');
@@ -223,6 +282,20 @@ class WidgetBridge {
     }
   }
 
+  /// يرسل إعدادات الودجت (حجم الخط/الشفافية) فوراً دون انتظار إعادة الكتابة.
+  static Future<void> pushSettings() async {
+    try {
+      await _channel.invokeMethod<void>('applySettings', {
+        'textScale': appState.widgetTextScale,
+        'opacity': appState.widgetOpacity,
+        'arabic': appState.isArabic,
+      });
+    } catch (e) {
+      logWidget('settings: $e');
+    }
+    await sync();
+  }
+
   static Future<void> _refresh() async {
     try {
       await _channel.invokeMethod<void>('refresh');
@@ -237,6 +310,7 @@ class WidgetBridge {
   static void listen({
     required Future<void> Function() onNewTask,
     required Future<void> Function() onMemos,
+    Future<void> Function()? onSettings,
   }) {
     _channel.setMethodCallHandler((call) async {
       try {
@@ -244,6 +318,9 @@ class WidgetBridge {
           final action = call.arguments as String?;
           if (action == 'new_task') await onNewTask();
           if (action == 'pull_memos') await onMemos();
+          if (action == 'widget_settings' && onSettings != null) {
+            await onSettings();
+          }
         }
       } catch (e) {
         logWidget('action: $e');

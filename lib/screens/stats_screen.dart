@@ -112,7 +112,7 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
             ),
             Text(label,
-                style: const TextStyle(color: kMuted, fontSize: 11, letterSpacing: 0.6)),
+                style: TextStyle(color: kMuted, fontSize: 11, letterSpacing: 0.6)),
           ],
         ),
       );
@@ -128,10 +128,10 @@ class _StatsScreenState extends State<StatsScreen> {
             // Neon bloom halo behind the hero number.
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
-              decoration: const BoxDecoration(gradient: kHaloGradient),
+              decoration: BoxDecoration(gradient: kHaloGradient),
               child: Text(
                 '$pct%',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 52,
                   fontWeight: FontWeight.w800,
                   color: kGreen,
@@ -142,7 +142,7 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
             Text(
               s('COMPLETION RATE', 'نسبة الإنجاز').toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 color: kMutedGreen,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -162,7 +162,7 @@ class _StatsScreenState extends State<StatsScreen> {
             const SizedBox(height: 8),
             Text(
               '${dayKey(span.from)} – ${dayKey(span.to)}',
-              style: const TextStyle(color: kMuted, fontSize: 12),
+              style: TextStyle(color: kMuted, fontSize: 12),
             ),
           ],
         ),
@@ -177,7 +177,7 @@ class _StatsScreenState extends State<StatsScreen> {
         child: Text(
           s('No tasks in this period', 'ما في مهام بهالفترة'),
           textAlign: TextAlign.center,
-          style: const TextStyle(color: kMuted),
+          style: TextStyle(color: kMuted),
         ),
       );
     }
@@ -224,7 +224,7 @@ class _StatsScreenState extends State<StatsScreen> {
       appBar: AppBar(title: Text(s('Reports', 'التقارير'))),
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: kGreen))
+            ? Center(child: CircularProgressIndicator(color: kGreen))
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [

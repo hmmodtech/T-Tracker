@@ -21,6 +21,7 @@ object WidgetActions {
     TasksWidgetProvider.refresh(context)
     MemoWidgetProvider.refresh(context)
     ResultWidgetProvider.refresh(context)
+    CalendarWidgetProvider.refresh(context)
   }
 
   /** True when at least one widget of any kind is on the home screen. */
@@ -30,6 +31,7 @@ object WidgetActions {
       TasksWidgetProvider::class.java,
       MemoWidgetProvider::class.java,
       ResultWidgetProvider::class.java,
+      CalendarWidgetProvider::class.java,
     ).any { manager.getAppWidgetIds(ComponentName(context, it)).isNotEmpty() }
   }
 }

@@ -206,6 +206,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   Widget build(BuildContext context) {
     final isNew = widget.task == null;
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(isNew ? s('New task', 'مهمة جديدة') : s('Edit task', 'تعديل المهمة')),
         actions: [
@@ -230,7 +231,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             Card(
               color: Colors.transparent,
               child: ListTile(
-                leading: const Icon(Icons.event, color: kGreen),
+                leading: Icon(Icons.event, color: kGreen),
                 title: Text(s('Date', 'التاريخ')),
                 subtitle: Text(dayKey(_date)),
                 onTap: _pickDate,
@@ -239,7 +240,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             Card(
               color: Colors.transparent,
               child: SwitchListTile(
-                secondary: const Icon(Icons.notifications_active, color: kGreen),
+                secondary: Icon(Icons.notifications_active, color: kGreen),
                 title: Text(s('Bell reminder', 'تذكير بالجرس')),
                 subtitle: Text(_remindAt == null
                     ? s('Off', 'مغلق')
@@ -295,7 +296,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             Card(
               color: Colors.transparent,
               child: SwitchListTile(
-                secondary: const Icon(Icons.lock_outline, color: kGreen),
+                secondary: Icon(Icons.lock_outline, color: kGreen),
                 title: Text(s('Private (never synced or exported)', 'خاصة (ما بتنرسل ولا بتتصدّر)')),
                 value: _isPrivate,
                 onChanged: (v) => setState(() => _isPrivate = v),

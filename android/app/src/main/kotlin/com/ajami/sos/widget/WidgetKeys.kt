@@ -15,4 +15,8 @@ object WidgetKeys {
   const val REQ_LIST = 1001
   const val REQ_MEMO = 1002
   const val REQ_RESULT = 1003
+  const val REQ_CALENDAR = 1004
+
+  /** Long-press a widget to open the widget settings in the app. */
+  const val ACTION_SETTINGS = "com.ajami.sos.widget.SETTINGS"
 }
