@@ -65,6 +65,105 @@ String toCsv(List<Task> tasks) {
   return b.toString();
 }
 
+/// يستورد مهامّ من CSV (نفس صيغة التصدير).
+///
+/// إذا كان الملف يحتوي على عمود لغة واحد فقط (عربي مثلاً)، يُوضع النص في
+/// العمودين حتى تظهر المهمة بأي لغة يختارها المستخدم لاحقاً — وهذا يحلّ
+/// مشكلة المهام المستوردة التي كانت تبقى عربية دائماً.
+Future<int> importCsv(String content) async {
+  final lines = content
+      .split(RegExp(r'\r?\n'))
+      .where((l) => l.trim().isNotEmpty)
+      .toList();
+  if (lines.isEmpty) return 0;
+
+  List<String> parse(String line) {
+    final out = <String>[];
+    final buf = StringBuffer();
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      final c = line[i];
+      if (c == '"') {
+        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
+          buf.write('"');
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c == ',' && !inQuotes) {
+        out.add(buf.toString());
+        buf.clear();
+      } else {
+        buf.write(c);
+      }
+    }
+    out.add(buf.toString());
+    return out;
+  }
+
+  final header = parse(lines.first).map((h) => h.trim().toLowerCase()).toList();
+  int idx(String name) => header.indexOf(name);
+  final iDate = idx('date');
+  final iEn = idx('title_en');
+  final iAr = idx('title_ar');
+  final iDet = idx('details_en');
+  final iDetAr = idx('details_ar');
+  final iCat = idx('category');
+  final iPri = idx('priority');
+  final iRep = idx('recurrence');
+
+  var added = 0;
+  final now = DateTime.now();
+  for (final line in lines.skip(1)) {
+    final f = parse(line);
+    String at(int i) => (i >= 0 && i < f.length) ? f[i].trim() : '';
+    final dateText = iDate >= 0 ? at(iDate) : '';
+    if (dateText.isEmpty) continue;
+    final date = DateTime.tryParse(dateText) ?? now;
+
+    final en = iEn >= 0 ? at(iEn) : '';
+    final ar = iAr >= 0 ? at(iAr) : '';
+    // Fall back to whichever language the file actually provides.
+    final titleEn = en.isNotEmpty ? en : ar;
+    final titleAr = ar.isNotEmpty ? ar : en;
+    if (titleEn.isEmpty) continue;
+
+    final detEn = iDet >= 0 ? at(iDet) : '';
+    final detAr = iDetAr >= 0 ? at(iDetAr) : '';
+
+    await Db.instance.saveTask(Task(
+      titleEn: titleEn,
+      titleAr: titleAr,
+      detailsEn: detEn.isNotEmpty ? detEn : detAr,
+      detailsAr: detAr.isNotEmpty ? detAr : detEn,
+      date: dateOnly(date),
+      category: iCat >= 0 && at(iCat).isNotEmpty ? at(iCat) : 'general',
+      priority: iPri >= 0 ? (int.tryParse(at(iPri)) ?? 1) : 1,
+      recurrence: iRep >= 0 && at(iRep).isNotEmpty ? at(iRep) : 'none',
+      updatedAt: now,
+    ));
+    added++;
+  }
+  return added;
+}
+
+/// يفتح منتقي ملفات ويستورد CSV.
+Future<int> pickAndImportCsv() async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['csv', 'txt'],
+    withData: true,
+  );
+  if (result == null || result.files.isEmpty) return 0;
+  final f = result.files.first;
+  final bytes = f.bytes ?? (f.path == null ? null : await File(f.path!).readAsBytes());
+  if (bytes == null) return 0;
+  // Handle a UTF-8 BOM that Excel writes.
+  var text = utf8.decode(bytes, allowMalformed: true);
+  if (text.startsWith('\uFEFF')) text = text.substring(1);
+  return importCsv(text);
+}
+
 Future<void> shareFile(String name, String content, String mime) async {
   final dir = await getTemporaryDirectory();
   final file = File('${dir.path}/$name');

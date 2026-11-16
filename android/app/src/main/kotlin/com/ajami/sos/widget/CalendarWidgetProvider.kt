@@ -58,7 +58,11 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         }
         openDay(context, day)
       }
-      ACTION_OPEN_DAY, ACTION_OPEN_APP -> openApp(context)
+      ACTION_OPEN_APP -> openApp(context)
+      ACTION_OPEN_DAY -> {
+        val day = intent.getStringExtra(EXTRA_DAY).orEmpty()
+        if (day.isEmpty()) openApp(context) else openDay(context, day)
+      }
     }
   }
 

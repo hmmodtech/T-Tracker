@@ -389,6 +389,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       return s('Backup restored', 'تمت استعادة النسخة الاحتياطية');
                     }),
                   )),
+                  _card(ListTile(
+                    leading: Icon(Icons.upload_file, color: kGreen),
+                    title: Text(s('Import tasks (.csv)', 'استيراد المهام (.csv)')),
+                    subtitle: Text(
+                      s(
+                        'Arabic-only or English-only files are stored bilingually',
+                        'ملف بلغة واحدة يُحفظ باللغتين تلقائياً',
+                      ),
+                      style: TextStyle(color: kMuted, fontSize: 12),
+                    ),
+                    onTap: () => _run(() async {
+                      final n = await pickAndImportCsv();
+                      if (n == 0) {
+                        return s('No tasks were imported', 'لم تُستورد أي مهام');
+                      }
+                      await Bell.resyncAll();
+                      WidgetBridge.sync();
+                      return s('Imported $n tasks', 'تم استيراد $n مهمة');
+                    }),
+                  )),
                   _header(s('Diagnostics', 'التشخيص')),
                   _card(ListTile(
                     leading: Icon(Icons.bug_report_outlined, color: kGreen),
