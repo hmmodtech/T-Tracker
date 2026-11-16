@@ -68,6 +68,12 @@
                 android:resource="@xml/widget_tasks_info" />
         </receiver>
 
+        <!-- Backs the scrollable task list in the tasks widget -->
+        <service
+            android:name=".widget.TasksWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <receiver
             android:name=".widget.MemoWidgetProvider"
             android:exported="false"

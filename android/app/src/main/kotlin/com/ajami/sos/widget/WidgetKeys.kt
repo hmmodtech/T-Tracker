@@ -19,4 +19,14 @@ object WidgetKeys {
 
   /** Long-press a widget to open the widget settings in the app. */
   const val ACTION_SETTINGS = "com.ajami.sos.widget.SETTINGS"
+
+  // ---- Tap-through targets (widget row / calendar day → app page) ----
+  const val ACTION_OPEN_TASK = "com.ajami.sos.OPEN_TASK"
+  const val ACTION_OPEN_DAY = "com.ajami.sos.OPEN_DAY"
+  const val ACTION_OPEN_NOTES = "com.ajami.sos.OPEN_NOTES"
+
+  /** Fill-in intent selectors used by TasksWidgetService. */
+  const val EXTRA_OPEN = "open_kind"
+  const val OPEN_TASK = "task"
+  const val OPEN_TOGGLE = "toggle"
 }

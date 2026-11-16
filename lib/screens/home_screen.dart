@@ -5,11 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../core/app_state.dart';
 import '../core/backdrop.dart';
+import '../core/bidi.dart';
 import '../core/theme.dart';
 import '../data/database.dart';
 import '../data/models.dart';
 import '../services/notifications.dart';
 import '../services/widget_bridge.dart';
+import 'notes_screen.dart';
+import 'note_editor_screen.dart';
 import 'search_screen.dart';
 import 'stats_screen.dart';
 import '../widgets/month_calendar.dart';
@@ -25,7 +28,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver {
-  final _memo = TextEditingController();
   DateTime _focused = DateTime.now();
   DateTime _selected = dateOnly(DateTime.now());
   List<Task> _tasks = [];
@@ -40,6 +42,9 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
+    // A widget tap can arrive before the app finished starting; pick it up
+    // once the first frame is on screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _drainPending());
     // Widget taps: the + button opens the new-task form, and memo taps pull
     // whatever was typed on the home screen into the database.
     WidgetBridge.listen(
@@ -50,6 +55,14 @@ class _HomeScreenState extends State<HomeScreen>
       onMemos: () async {
         await WidgetBridge.applyPending();
         if (mounted) await _load();
+      },
+      // Tapping a task row opens that task's page.
+      onOpenTask: (taskId, day) async {
+        await openTaskFromWidget(taskId, day);
+      },
+      // Tapping a calendar day opens that day's page with its memo.
+      onOpenDay: (day) async {
+        await openDayFromWidget(day);
       },
       // Long-pressing a widget opens the widget settings.
       onSettings: () async {
@@ -63,6 +76,28 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// ينفّذ أي أمر ودجت معلّق (فتح مهمة / فتح يوم / مهمة جديدة).
+  Future<void> _drainPending() async {
+    final raw = await WidgetBridge.consumePending();
+    if (raw == null || !mounted) return;
+    await WidgetBridge.runAction(
+      raw,
+      onNewTask: () async {
+        await _load();
+        if (mounted) await _openForm();
+      },
+      onOpenTask: openTaskFromWidget,
+      onOpenDay: openDayFromWidget,
+      onSettings: () async {
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        );
+      },
+    );
+  }
+
   // The launcher can queue taps while we are in the background.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -70,13 +105,13 @@ class _HomeScreenState extends State<HomeScreen>
       WidgetBridge.applyPending().then((_) {
         if (mounted) _load();
       });
+      _drainPending();
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _memo.dispose();
     super.dispose();
   }
 
@@ -198,12 +233,41 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _addMemo() async {
-    final text = _memo.text.trim();
-    if (text.isEmpty) return;
-    await Db.instance.addNote(_selected, text);
-    _memo.clear();
-    _load();
+  /// يفتح محرّر الملاحظات الغني (عنوان، تنسيق، ألوان، نصوص طويلة).
+  Future<void> _openNote(Note? note) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NoteEditorScreen(note: note, day: _selected),
+      ),
+    );
+    if (changed == true) _load();
+  }
+
+  /// يستقبل طلب فتح يوم أو مهمة قادماً من الودجت.
+  Future<void> openDayFromWidget(String dayKeyValue) async {
+    final parts = dayKeyValue.split('-');
+    if (parts.length != 3) return;
+    final d = DateTime(
+      int.tryParse(parts[0]) ?? DateTime.now().year,
+      int.tryParse(parts[1]) ?? DateTime.now().month,
+      int.tryParse(parts[2]) ?? DateTime.now().day,
+    );
+    setState(() {
+      _selected = dateOnly(d);
+      _focused = d;
+    });
+    await _load();
+  }
+
+  Future<void> openTaskFromWidget(int taskId, String day) async {
+    if (day.isNotEmpty) await openDayFromWidget(day);
+    final all = await Db.instance.tasks();
+    final match = all.where((t) => t.id == taskId).toList();
+    if (match.isEmpty) return;
+    if (!mounted) return;
+    await _openForm(match.first);
+    await _load();
   }
 
   // ---------- UI helpers ----------
@@ -217,6 +281,13 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       );
+
+  /// '#RRGGBB' → Color
+  Color _hex(String hex) {
+    final h = hex.replaceFirst('#', '');
+    final v = int.tryParse(h, radix: 16) ?? 0x25F4C8;
+    return Color(0xFF000000 | v);
+  }
 
   Widget _chip(String text, Color c) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -252,7 +323,9 @@ class _HomeScreenState extends State<HomeScreen>
                 onChanged: (_) => _toggle(t),
               ),
               Expanded(
-                child: Text(
+                // Each title flows in its own direction so an English word
+                // inside an Arabic sentence is not scrambled.
+                child: BidiText(
                   t.title(ar),
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
@@ -286,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen>
             if (t.details(ar).isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 6, 8, 0),
-                child: Text(t.details(ar),
+                child: BidiText(t.details(ar),
                     style: TextStyle(
                         color: kMuted, fontSize: 12, height: 1.35)),
               ),
@@ -305,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(
+                      child: BidiText(
                         t.checklist[i].text,
                         style: TextStyle(
                           fontSize: 12,
@@ -524,52 +597,96 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
 
-              // ---- Memos (lazy) ----
+              // ---- Notes (rich, lazy) ----
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                  childCount: _notes.length,
-                  (context, i) {
-                    final n = _notes[i];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      decoration: glass(border: kDimGreen.withAlpha(90)),
-                      child: ListTile(
-                        dense: true,
-                        title: Text(n.text),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () async {
-                            await Db.instance.deleteNote(n.id);
-                            _load();
-                          },
+                    (context, i) {
+                      final n = _notes[i];
+                      return GestureDetector(
+                        onTap: () => _openNote(n),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          decoration: glass(
+                            border: n.colorHex == null
+                                ? kDimGreen.withAlpha(90)
+                                : _hex(n.colorHex!).withAlpha(130),
+                          ),
+                          child: ListTile(
+                            dense: true,
+                            leading: n.pinned
+                                ? Icon(Icons.push_pin, size: 15, color: kAmber)
+                                : null,
+                            title: BidiText(
+                              n.displayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: n.text.trim().isEmpty
+                                ? null
+                                : BidiText(
+                                    n.text.replaceAll('\n', ' '),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: kMuted, fontSize: 11),
+                                  ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () async {
+                                await Db.instance.deleteNote(n.id);
+                                WidgetBridge.sync();
+                                _load();
+                              },
+                            ),
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                    childCount: _notes.length,
                   ),
                 ),
               ),
 
+              // ---- Add a note (rich editor) ----
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 100),
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
                 sliver: SliverToBoxAdapter(
-                  child: Row(children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _memo,
-                        onSubmitted: (_) => _addMemo(),
-                        decoration: InputDecoration(
-                          hintText: s.t('Write a memo...', 'اكتب مذكرة...'),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kGreen,
+                            side: BorderSide(color: kPetrol),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.note_add_outlined, size: 18),
+                          label: Text(
+                            s.t('New note', 'ملاحظة جديدة'),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          onPressed: () => _openNote(null),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: _addMemo,
-                      icon: Icon(Icons.send, color: kGreen),
-                    ),
-                  ]),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: s.t('All notes', 'كل الملاحظات'),
+                        icon: const Icon(Icons.list_alt),
+                        color: kGreen,
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => NotesScreen(day: _selected),
+                            ),
+                          );
+                          _load();
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

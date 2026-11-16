@@ -22,4 +22,19 @@
     <color name="widget_red">#FF5470</color>
     <color name="widget_amber">#FFC15E</color>
     <color name="widget_transparent">#00000000</color>
+
+    <!-- Light-mode palette for the widgets (mirrors the app's light theme) -->
+    <color name="widget_light_bg">#EEF3F8</color>
+    <color name="widget_light_card">#FAFCFE</color>
+    <color name="widget_light_border">#C3D3E2</color>
+    <color name="widget_light_track">#D9E3EC</color>
+    <color name="widget_light_green">#0E9E86</color>
+    <color name="widget_light_aqua">#2E86C8</color>
+    <color name="widget_light_dim">#127C96</color>
+    <color name="widget_light_mint">#7FE3CE</color>
+    <color name="widget_light_text">#16283C</color>
+    <color name="widget_light_muted">#61758C</color>
+    <color name="widget_light_muted_green">#4C7D71</color>
+    <color name="widget_light_red">#D6374F</color>
+    <color name="widget_light_amber">#B57614</color>
 </resources>

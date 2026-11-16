@@ -19,6 +19,7 @@
         android:src="@drawable/widget_check_off" />
 
     <LinearLayout
+        android:id="@+id/row_open"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"

@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'core/app_state.dart';
 import 'core/backdrop.dart';
+import 'core/bidi.dart';
 import 'core/boot_log.dart';
 import 'core/matrix_rain.dart';
 import 'core/theme.dart';
@@ -57,6 +58,10 @@ class SosApp extends StatelessWidget {
         theme: appTheme(),
         locale: Locale(appState.isArabic ? 'ar' : 'en'),
         supportedLocales: const [Locale('en'), Locale('ar')],
+        // Keep the phone's system locale for framework messages, but let the
+        // app's own language switch drive the app locale and text direction.
+        localeResolutionCallback: (device, supported) =>
+            Locale(appState.isArabic ? 'ar' : 'en'),
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
@@ -69,11 +74,13 @@ class SosApp extends StatelessWidget {
           // The sculpted photo backdrop sits behind every screen; screens
           // themselves are transparent so the image shows through.
           child: AppBackdrop(
-            child: Stack(
+            child: BidiScope(
+              child: Stack(
               children: [
                 if (appState.matrixRain) const Positioned.fill(child: MatrixRain()),
                 AppGate(child: child!),
               ],
+              ),
             ),
           ),
         ),

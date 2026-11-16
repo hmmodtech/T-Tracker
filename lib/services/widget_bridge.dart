@@ -262,6 +262,7 @@ class WidgetBridge {
         'textScale': appState.widgetTextScale,
         'opacity': appState.widgetOpacity,
         'arabic': appState.isArabic,
+        'lightMode': appState.lightMode,
       },
     };
 
@@ -290,6 +291,7 @@ class WidgetBridge {
         'textScale': appState.widgetTextScale,
         'opacity': appState.widgetOpacity,
         'arabic': appState.isArabic,
+        'lightMode': appState.lightMode,
       });
     } catch (e) {
       logWidget('settings: $e');
@@ -307,20 +309,71 @@ class WidgetBridge {
     }
   }
 
+  /// يسحب أمراً كان بانتظار فتح التطبيق (نقرة على ودجت قبل الإقلاع).
+  /// يرجع null إذا لا يوجد أمر معلّق.
+  static Future<String?> consumePending() async {
+    try {
+      final raw = await _channel.invokeMethod<String>('consumeAction');
+      if (raw == null || raw.isEmpty) return null;
+      return raw;
+    } catch (e) {
+      logWidget('consume: $e');
+      return null;
+    }
+  }
+
+  /// ينفّذ أمراً بصيغة "action|taskId|day" — يُستخدم عند الإقلاع والاستئناف.
+  static Future<void> runAction(
+    String raw, {
+    required Future<void> Function() onNewTask,
+    required Future<void> Function(int taskId, String day) onOpenTask,
+    required Future<void> Function(String day) onOpenDay,
+    Future<void> Function()? onSettings,
+  }) async {
+    final parts = raw.split('|');
+    final action = parts.isNotEmpty ? parts[0] : raw;
+    final taskId = parts.length > 1 ? (int.tryParse(parts[1]) ?? -1) : -1;
+    final day = parts.length > 2 ? parts[2] : '';
+    switch (action) {
+      case 'new_task':
+        await onNewTask();
+      case 'open_task':
+        if (taskId >= 0) await onOpenTask(taskId, day);
+      case 'open_day':
+        if (day.isNotEmpty) await onOpenDay(day);
+      case 'widget_settings':
+        if (onSettings != null) await onSettings();
+    }
+  }
+
   /// يستمع لأوامر الودجت: فتح نموذج مهمة جديدة، أو سحب الميمو المكتوبة.
   static void listen({
     required Future<void> Function() onNewTask,
     required Future<void> Function() onMemos,
     Future<void> Function()? onSettings,
+    Future<void> Function(int taskId, String day)? onOpenTask,
+    Future<void> Function(String day)? onOpenDay,
   }) {
     _channel.setMethodCallHandler((call) async {
       try {
         if (call.method == 'openAction') {
-          final action = call.arguments as String?;
+          final raw = call.arguments as String? ?? '';
+          // Payload shape: "action|taskId|day" (taskId/day may be empty).
+          final parts = raw.split('|');
+          final action = parts.isNotEmpty ? parts[0] : raw;
+          final taskId = parts.length > 1 ? (int.tryParse(parts[1]) ?? -1) : -1;
+          final day = parts.length > 2 ? parts[2] : '';
+
           if (action == 'new_task') await onNewTask();
           if (action == 'pull_memos') await onMemos();
           if (action == 'widget_settings' && onSettings != null) {
             await onSettings();
+          }
+          if (action == 'open_task' && onOpenTask != null && taskId >= 0) {
+            await onOpenTask(taskId, day);
+          }
+          if (action == 'open_day' && onOpenDay != null && day.isNotEmpty) {
+            await onOpenDay(day);
           }
         }
       } catch (e) {

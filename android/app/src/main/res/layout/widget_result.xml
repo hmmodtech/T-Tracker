@@ -11,6 +11,7 @@
 
     <!-- Accent rule: aqua → cyan-green glow -->
     <ImageView
+        android:id="@+id/w_accent"
         android:layout_width="match_parent"
         android:layout_height="3dp"
         android:layout_marginBottom="8dp"

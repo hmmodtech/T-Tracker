@@ -68,6 +68,7 @@ object WidgetData {
     val textScale: Float = 1f,
     val opacity: Float = 0.85f,
     val arabic: Boolean = false,
+    val lightMode: Boolean = false,
     val generatedAt: Long = 0,
     val hasAppData: Boolean = false,
   ) {
@@ -157,6 +158,7 @@ object WidgetData {
       textScale = (settings?.optDouble("textScale", 1.0) ?: 1.0).toFloat(),
       opacity = (settings?.optDouble("opacity", 0.85) ?: 0.85).toFloat(),
       arabic = settings?.optBoolean("arabic") ?: false,
+      lightMode = settings?.optBoolean("lightMode") ?: false,
       doneToday = o.optInt("doneToday"),
       scheduledToday = o.optInt("scheduledToday"),
       doneYesterday = o.optInt("doneYesterday"),
@@ -205,6 +207,35 @@ object WidgetData {
       }
     } catch (_: Throwable) {
       emptyList()
+    }
+  }
+
+  /**
+   * Mirrors the queued ticks onto the cached snapshot so a checkbox flips as
+   * soon as it is tapped, instead of waiting for the app to drain the queue.
+   * The real database is still updated by the Flutter side.
+   */
+  fun applyQueuedToggles(context: Context) {
+    val toggles = pendingToggles(context)
+    if (toggles.isEmpty()) return
+    val file = snapshotFile(context) ?: return
+    if (!file.exists()) return
+    try {
+      val root = JSONObject(file.readText())
+      for ((id, day, done) in toggles) {
+        for (key in listOf("today", "upcoming", "overdue")) {
+          val arr = root.optJSONArray(key) ?: continue
+          for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (o.optInt("id") == id && (day.isEmpty() || o.optString("day") == day)) {
+              o.put("done", done)
+            }
+          }
+        }
+      }
+      file.writeText(root.toString())
+    } catch (_: Throwable) {
+      // A broken cache must never break the widget.
     }
   }
 

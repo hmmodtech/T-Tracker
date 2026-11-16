@@ -156,16 +156,158 @@ class Task {
       );
 }
 
+/// تنسيق نصي محفوظ (غامق / مائل / تسطير / عنوان / قائمة) على مقطع معيّن.
+class NoteSpan {
+  final int start;
+  final int end;
+  final bool bold;
+  final bool italic;
+  final bool underline;
+  final bool strike;
+
+  /// 0 = نص عادي، 1 = عنوان، 2 = عنوان فرعي، 3 = اقتباس
+  final int heading;
+  final bool bullet;
+
+  /// حجم إضافي بالبكسل (0 = افتراضي)
+  final double sizeDelta;
+
+  const NoteSpan({
+    required this.start,
+    required this.end,
+    this.bold = false,
+    this.italic = false,
+    this.underline = false,
+    this.strike = false,
+    this.heading = 0,
+    this.bullet = false,
+    this.sizeDelta = 0,
+  });
+
+  bool get isDefault =>
+      !bold &&
+      !italic &&
+      !underline &&
+      !strike &&
+      heading == 0 &&
+      !bullet &&
+      sizeDelta == 0;
+
+  Map<String, Object?> toJson() => {
+        's': start,
+        'e': end,
+        if (bold) 'b': 1,
+        if (italic) 'i': 1,
+        if (underline) 'u': 1,
+        if (strike) 'k': 1,
+        if (heading != 0) 'h': heading,
+        if (bullet) 'l': 1,
+        if (sizeDelta != 0) 'z': sizeDelta,
+      };
+
+  factory NoteSpan.fromJson(Map<String, Object?> m) => NoteSpan(
+        start: _int(m['s']),
+        end: _int(m['e']),
+        bold: _int(m['b']) == 1,
+        italic: _int(m['i']) == 1,
+        underline: _int(m['u']) == 1,
+        strike: _int(m['k']) == 1,
+        heading: _int(m['h']),
+        bullet: _int(m['l']) == 1,
+        sizeDelta: (m['z'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+/// ملاحظة نصية حرّة (مثل ملف Word مصغّر): عنوان + نص + تنسيقات + لون.
 class Note {
   final int id;
   final DateTime day;
   final String text;
-  const Note({required this.id, required this.day, required this.text});
+  final String title;
+  final String? colorHex;
+  final List<NoteSpan> spans;
+  final bool pinned;
+  final DateTime updatedAt;
+
+  const Note({
+    required this.id,
+    required this.day,
+    required this.text,
+    this.title = '',
+    this.colorHex,
+    this.spans = const [],
+    this.pinned = false,
+    DateTime? updatedAt,
+  }) : updatedAt = updatedAt ?? _epoch;
+
+  static final DateTime _epoch = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// أول سطر كعنوان مقترح.
+  String get displayTitle {
+    if (title.trim().isNotEmpty) return title.trim();
+    final first = text.split('\n').first.trim();
+    return first.isEmpty ? text.trim() : first;
+  }
+
+  int get wordCount => text
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .length;
 
   factory Note.fromMap(Map<String, Object?> m) => Note(
         id: _int(m['id']),
         day: _date(m['day']),
         text: _text(m['text']),
+        title: _text(m['title']),
+        colorHex: m['color'] as String?,
+        spans: _parseSpans(m['spans'] as String?),
+        pinned: _int(m['pinned']) == 1,
+        updatedAt: m['updated_at'] == null
+            ? DateTime.fromMillisecondsSinceEpoch(0)
+            : _date(m['updated_at']),
       );
+
+  Map<String, Object?> toMap() => {
+        'day': dayKey(day),
+        'text': text,
+        'title': title,
+        'color': colorHex,
+        'spans': jsonEncode(spans.map((s) => s.toJson()).toList()),
+        'pinned': pinned ? 1 : 0,
+        'updated_at': updatedAt.toIso8601String(),
+      };
+
+  Note copyWith({
+    String? text,
+    String? title,
+    String? colorHex,
+    List<NoteSpan>? spans,
+    bool? pinned,
+    DateTime? day,
+  }) =>
+      Note(
+        id: id,
+        day: day ?? this.day,
+        text: text ?? this.text,
+        title: title ?? this.title,
+        colorHex: colorHex ?? this.colorHex,
+        spans: spans ?? this.spans,
+        pinned: pinned ?? this.pinned,
+        updatedAt: DateTime.now(),
+      );
+}
+
+List<NoteSpan> _parseSpans(String? raw) {
+  if (raw == null || raw.isEmpty) return const [];
+  try {
+    final list = jsonDecode(raw) as List<dynamic>;
+    return list
+        .whereType<Map<dynamic, dynamic>>()
+        .map((m) => NoteSpan.fromJson(m.cast<String, Object?>()))
+        .toList();
+  } catch (_) {
+    return const [];
+  }
 }
 

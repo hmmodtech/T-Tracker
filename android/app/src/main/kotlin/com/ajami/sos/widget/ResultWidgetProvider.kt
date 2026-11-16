@@ -44,9 +44,17 @@ class ResultWidgetProvider : AppWidgetProvider() {
     fun build(context: Context): RemoteViews {
       val views = RemoteViews(context.packageName, R.layout.widget_result)
       val data = WidgetData.load(context)
-      val res = context.resources
+      val res = WidgetStrings.of(context, data).resources
       val scale = WidgetStyle.scale(data)
+      val palette = WidgetStyle.palette(data)
       WidgetStyle.apply(context, views, data)
+
+      views.setColorFilter(R.id.w_accent, palette.green)
+      views.setTextColor(R.id.w_big, palette.mint)
+      views.setTextColor(R.id.w_count, palette.muted)
+      views.setTextColor(R.id.w_yesterday, palette.text)
+      views.setTextColor(R.id.w_week, palette.aqua)
+      views.setColorFilter(R.id.w_refresh, palette.green)
 
       views.setTextViewText(R.id.w_big, "${data.rateToday}%")
       views.setTextViewText(

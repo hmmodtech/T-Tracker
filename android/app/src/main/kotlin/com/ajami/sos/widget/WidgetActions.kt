@@ -13,11 +13,25 @@ object WidgetActions {
 
   fun toggleTask(context: Context, taskId: Int, day: String) {
     WidgetData.queueToggle(context, taskId, day)
+    // The queued tick is mirrored locally so the row flips instantly, before
+    // the app drains the queue and rewrites the snapshot.
+    WidgetData.applyQueuedToggles(context)
     refreshAll(context)
   }
 
   /** Updates every widget from the current snapshot. */
   fun refreshAll(context: Context) {
+    // ListView-backed widgets need an explicit dataset-changed signal,
+    // otherwise the adapter keeps the rows it already built.
+    try {
+      val manager = AppWidgetManager.getInstance(context)
+      val ids = manager.getAppWidgetIds(
+        ComponentName(context, TasksWidgetProvider::class.java),
+      )
+      for (id in ids) manager.notifyAppWidgetViewDataChanged(id, com.ajami.sos.R.id.w_list)
+    } catch (_: Throwable) {
+      // ignore
+    }
     TasksWidgetProvider.refresh(context)
     MemoWidgetProvider.refresh(context)
     ResultWidgetProvider.refresh(context)

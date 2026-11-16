@@ -30,7 +30,7 @@ class Db {
     return openDatabase(
       p.join(await getDatabasesPath(), 'sos_secure.db'),
       password: key,
-      version: 2,
+      version: 3,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE tasks (
@@ -54,12 +54,26 @@ class Db {
         await db.execute('''
           CREATE TABLE notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            day TEXT NOT NULL, text TEXT NOT NULL)''');
+            day TEXT NOT NULL,
+            text TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            color TEXT,
+            spans TEXT,
+            pinned INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT)''');
       },
       // v2: recurring windows (the pre-defined plan ends on a fixed day).
       onUpgrade: (db, from, to) async {
         if (from < 2) {
           await db.execute('ALTER TABLE tasks ADD COLUMN until TEXT');
+        }
+        if (from < 3) {
+          // Rich notes: title, colour, formatting spans, pin, timestamps.
+          await db.execute("ALTER TABLE notes ADD COLUMN title TEXT NOT NULL DEFAULT ''");
+          await db.execute('ALTER TABLE notes ADD COLUMN color TEXT');
+          await db.execute('ALTER TABLE notes ADD COLUMN spans TEXT');
+          await db.execute('ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0');
+          await db.execute('ALTER TABLE notes ADD COLUMN updated_at TEXT');
         }
       },
     );
@@ -165,7 +179,32 @@ class Db {
 
   Future<void> addNote(DateTime day, String text) async {
     final db = await _database;
-    await db.insert('notes', {'day': dayKey(day), 'text': text});
+    await db.insert('notes', {
+      'day': dayKey(day),
+      'text': text,
+      'title': '',
+      'pinned': 0,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// يحفظ ملاحظة كاملة (مع التنسيقات). يرجع المعرّف.
+  Future<int> saveNote(Note n) async {
+    final db = await _database;
+    final map = n.toMap();
+    if (n.id <= 0) return db.insert('notes', map);
+    await db.update('notes', map, where: 'id = ?', whereArgs: [n.id]);
+    return n.id;
+  }
+
+  Future<void> togglePin(Note n) async {
+    final db = await _database;
+    await db.update(
+      'notes',
+      {'pinned': n.pinned ? 0 : 1},
+      where: 'id = ?',
+      whereArgs: [n.id],
+    );
   }
 
   Future<void> deleteNote(int id) async {

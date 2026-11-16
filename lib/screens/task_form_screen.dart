@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../core/app_state.dart';
+import '../core/bidi.dart';
 import '../core/theme.dart';
 import '../data/database.dart';
 import '../data/models.dart';
@@ -99,13 +100,13 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   Widget _field(TextEditingController c, String label, {int lines = 1, bool voice = true}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
+      // BidiField keeps the cursor and alignment correct while typing
+      // Arabic, English, or both in the same field.
+      child: BidiField(
         controller: c,
+        labelText: label,
         maxLines: lines,
-        decoration: InputDecoration(
-          labelText: label,
-          suffixIcon: voice ? _mic(c) : null,
-        ),
+        suffixIcon: voice ? _mic(c) : null,
       ),
     );
   }

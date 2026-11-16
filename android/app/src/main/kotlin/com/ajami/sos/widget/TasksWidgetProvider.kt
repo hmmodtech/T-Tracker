@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
@@ -34,15 +35,33 @@ class TasksWidgetProvider : AppWidgetProvider() {
     super.onReceive(context, intent)
     when (intent.action) {
       WidgetKeys.ACTION_TOGGLE -> {
+        // Only the checkbox carries the "toggle" selector; everything else in
+        // the row carries "task", so tapping the title opens the app.
+        val kind = intent.getStringExtra(WidgetKeys.EXTRA_OPEN)
         val taskId = intent.getIntExtra(WidgetKeys.EXTRA_TASK_ID, -1)
         val day = intent.getStringExtra(WidgetKeys.EXTRA_DAY).orEmpty()
-        if (taskId >= 0 && day.isNotEmpty()) {
-          WidgetActions.toggleTask(context, taskId, day)
+        if (kind == WidgetKeys.OPEN_TASK) {
+          if (taskId >= 0) openTask(context, taskId, day)
+          return
         }
-        refresh(context)
+        if (kind == WidgetKeys.OPEN_TOGGLE && taskId >= 0 && day.isNotEmpty()) {
+          WidgetActions.toggleTask(context, taskId, day)
+          WidgetActions.refreshAll(context)
+        }
       }
       // Long-press opens the in-app widget settings.
       WidgetKeys.ACTION_SETTINGS -> openConfig(context)
+    }
+  }
+
+  private fun openTask(context: Context, taskId: Int, day: String) {
+    try {
+      val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+      PendingIntent.getActivity(
+        context, taskId, taskPageIntent(context, taskId, day), flags,
+      ).send()
+    } catch (_: Throwable) {
+      // Never let a widget tap crash the launcher.
     }
   }
 
@@ -60,9 +79,6 @@ class TasksWidgetProvider : AppWidgetProvider() {
   }
 
   companion object {
-    private const val DONE_TEXT = 0xFF7C8FAB.toInt()
-    private const val ACTIVE_TEXT = 0xFFD7E6F5.toInt()
-    private const val MISSION_TAG = 0xFF38BDF8.toInt()
 
     fun refresh(context: Context) {
       val manager = AppWidgetManager.getInstance(context)
@@ -77,88 +93,32 @@ class TasksWidgetProvider : AppWidgetProvider() {
     fun build(context: Context): RemoteViews {
       val views = RemoteViews(context.packageName, R.layout.widget_tasks)
       val data = WidgetData.load(context)
-      val res = context.resources
+      // Labels follow the app language, not the phone language.
+      val res = WidgetStrings.of(context, data).resources
       val scale = WidgetStyle.scale(data)
+      val palette = WidgetStyle.palette(data)
 
       WidgetStyle.apply(context, views, data)
 
-      views.removeAllViews(R.id.w_rows)
-
-      val todayKey = WidgetData.dayKey(0)
-      val rows = mutableListOf<Pair<WidgetData.Task, Boolean>>() // task, isUpcoming
-
-      data.today.take(4).forEach { rows += it to false }
-      // Upcoming scheduled tasks (mission plan) fill the remaining space.
-      val room = (4 - rows.size) + 2
-      data.upcoming.take(room).forEach { rows += it to true }
-
-      views.setViewVisibility(
-        R.id.w_empty,
-        if (rows.isEmpty()) View.VISIBLE else View.GONE,
-      )
-
-      for ((task, isUpcoming) in rows) {
-        val row = RemoteViews(context.packageName, R.layout.widget_tasks_row)
-        row.setTextViewText(R.id.row_title, task.title)
-        row.setTextViewTextSize(
-          R.id.row_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
-        )
-        row.setImageViewResource(
-          R.id.row_check,
-          if (task.done) R.drawable.widget_check_on else R.drawable.widget_check_off,
-        )
-        row.setTextColor(R.id.row_title, if (task.done) DONE_TEXT else ACTIVE_TEXT)
-        row.setViewVisibility(
-          R.id.row_strike,
-          if (task.done) View.VISIBLE else View.GONE,
-        )
-
-        val sub = buildString {
-          if (isUpcoming) {
-            append(friendlyDay(task.day))
-            if (!task.time.isNullOrEmpty()) { append(" · "); append(task.time) }
-          } else if (!task.time.isNullOrEmpty()) {
-            append(task.time)
-          }
-          if (task.subtitle.isNotEmpty()) {
-            if (isNotEmpty()) append("  ")
-            append("☑ "); append(task.subtitle)
-          }
-          if (task.isPrivate) {
-            if (isNotEmpty()) append("  ")
-            append("🔒")
-          }
-        }
-        if (sub.isNotEmpty()) {
-          row.setViewVisibility(R.id.row_sub, View.VISIBLE)
-          row.setTextViewText(R.id.row_sub, sub)
-          row.setTextViewTextSize(
-            R.id.row_sub, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(10f, scale),
-          )
-        } else {
-          row.setViewVisibility(R.id.row_sub, View.GONE)
-        }
-
-        // Mission entries get a small blue dot instead of the red priority dot.
-        if (task.priority >= 2) {
-          row.setViewVisibility(R.id.row_tag, View.VISIBLE)
-          row.setTextViewText(R.id.row_tag, "●")
-          row.setTextColor(R.id.row_tag, 0xFFFF5470.toInt())
-        } else if (task.isMission) {
-          row.setViewVisibility(R.id.row_tag, View.VISIBLE)
-          row.setTextViewText(R.id.row_tag, "◆")
-          row.setTextColor(R.id.row_tag, MISSION_TAG)
-        } else {
-          row.setViewVisibility(R.id.row_tag, View.GONE)
-        }
-
-        row.setOnClickPendingIntent(R.id.row_title, openApp(context))
-        row.setOnClickPendingIntent(
-          R.id.row_check,
-          toggleIntent(context, task.id, task.day.ifEmpty { todayKey }),
-        )
-        views.addView(R.id.w_rows, row)
+      // Scrollable list: the RemoteViewsService builds the rows lazily and
+      // handles both tap-to-open and tap-to-tick.
+      val adapter = Intent(context, TasksWidgetService::class.java).apply {
+        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
       }
+      views.setRemoteAdapter(R.id.w_list, adapter)
+      views.setEmptyView(R.id.w_list, R.id.w_empty)
+
+      // A tick inside the list must not open the app.
+      val toggled = Intent(context, TasksWidgetProvider::class.java).apply {
+        action = WidgetKeys.ACTION_TOGGLE
+      }
+      views.setPendingIntentTemplate(
+        R.id.w_list,
+        PendingIntent.getBroadcast(
+          context, WidgetKeys.REQ_LIST + 9, toggled, immutableFlags(),
+        ),
+      )
 
       val left = data.left
       views.setTextViewText(
@@ -173,6 +133,11 @@ class TasksWidgetProvider : AppWidgetProvider() {
       views.setTextViewTextSize(
         R.id.w_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
       )
+      views.setTextColor(R.id.w_title, palette.green)
+      views.setTextColor(R.id.w_count, palette.mutedGreen)
+      views.setTextColor(R.id.w_empty, palette.muted)
+      views.setColorFilter(R.id.w_add, palette.aqua)
+      views.setColorFilter(R.id.w_accent, palette.green)
 
       views.setOnClickPendingIntent(R.id.w_add, newTaskIntent(context))
       return views

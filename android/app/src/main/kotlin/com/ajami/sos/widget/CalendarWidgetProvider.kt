@@ -47,13 +47,16 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         }
       }
       ACTION_DAY -> {
+        // Selecting a day both highlights it here and opens that day's page in
+        // the app, where the tasks and the memo for the day are listed.
         val id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
         val day = intent.getStringExtra(EXTRA_DAY).orEmpty()
-        if (id != -1 && day.isNotEmpty()) {
+        if (day.isEmpty()) return
+        if (id != -1) {
           prefs(context).edit().putString(selectedKey(id), day).apply()
-          AppWidgetManager.getInstance(context)
-            .updateAppWidget(id, build(context, id))
+          AppWidgetManager.getInstance(context).updateAppWidget(id, build(context, id))
         }
+        openDay(context, day)
       }
       ACTION_OPEN_DAY, ACTION_OPEN_APP -> openApp(context)
     }
@@ -85,6 +88,21 @@ class CalendarWidgetProvider : AppWidgetProvider() {
     }
   }
 
+  /** Opens the app directly on the requested day. */
+  private fun openDay(context: Context, day: String) {
+    try {
+      val pi = PendingIntent.getActivity(
+        context,
+        day.hashCode() and 0xFFFF,
+        dayPageIntent(context, day),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+      )
+      pi.send()
+    } catch (_: Throwable) {
+      openApp(context)
+    }
+  }
+
   private fun openApp(context: Context) {
     try {
       context.startActivity(
@@ -106,12 +124,6 @@ class CalendarWidgetProvider : AppWidgetProvider() {
 
     private const val PREFS = "sos_calendar_widget"
 
-    private const val TEXT = 0xFFD7E6F5.toInt()
-    private const val MUTED = 0xFF7C8FAB.toInt()
-    private const val GREEN = 0xFF25F4C8.toInt()
-    private const val AQUA = 0xFF38BDF8.toInt()
-    private const val AMBER = 0xFFFFC15E.toInt()
-    private const val RED = 0xFFFF5470.toInt()
 
     fun refresh(context: Context) {
       val manager = AppWidgetManager.getInstance(context)
@@ -150,6 +162,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
       val views = RemoteViews(context.packageName, R.layout.widget_calendar)
       val data = WidgetData.load(context)
       val scale = WidgetStyle.scale(data)
+      val palette = WidgetStyle.palette(data)
       WidgetStyle.apply(context, views, data)
 
       val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -158,6 +171,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
       val year = monthCal.get(Calendar.YEAR)
       val month = monthCal.get(Calendar.MONTH) // 0-based
       val arabic = data.arabic
+      val localized = WidgetStrings.of(context, data)
 
       // Header
       val monthLabel = SimpleDateFormat(
@@ -165,6 +179,10 @@ class CalendarWidgetProvider : AppWidgetProvider() {
       if (arabic) Locale("ar") else Locale.US,
     ).format(monthCal.time)
       views.setTextViewText(R.id.cal_month, monthLabel)
+      views.setTextColor(R.id.cal_month, palette.green)
+      views.setTextColor(R.id.cal_prev, palette.green)
+      views.setTextColor(R.id.cal_next, palette.green)
+      views.setColorFilter(R.id.cal_accent, palette.green)
       views.setTextViewTextSize(
         R.id.cal_month, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
       )
@@ -179,6 +197,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
       for (name in weekdays) {
         val wd = RemoteViews(context.packageName, R.layout.widget_cal_weekday)
         wd.setTextViewText(R.id.wd_label, name)
+        wd.setTextColor(R.id.wd_label, palette.mutedGreen)
         views.addView(R.id.cal_weekdays, wd)
       }
 
@@ -224,9 +243,9 @@ class CalendarWidgetProvider : AppWidgetProvider() {
           cell.setTextColor(
             R.id.cell_day,
             when {
-              isSelected -> GREEN
-              isToday -> AQUA
-              else -> TEXT
+              isSelected -> palette.green
+              isToday -> palette.aqua
+              else -> palette.text
             },
           )
 
@@ -237,7 +256,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             if (i < total) {
               cell.setViewVisibility(dotId, View.VISIBLE)
               val done = day?.doneFlags?.getOrNull(i) ?: false
-              cell.setTextColor(dotId, if (done) MUTED else GREEN)
+              cell.setTextColor(dotId, if (done) palette.muted else palette.green)
             } else {
               cell.setViewVisibility(dotId, View.GONE)
             }
@@ -246,15 +265,17 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             R.id.cell_memo,
             if (day?.hasMemo == true) View.VISIBLE else View.GONE,
           )
+          cell.setTextColor(R.id.cell_memo, palette.amber)
 
           // Tap a day → show its tasks in the summary line.
-          if (isSelected) {
-            cell.setInt(R.id.cell_root, "setBackgroundColor", 0x2525F4C8)
-          } else if (isToday) {
-            cell.setInt(R.id.cell_root, "setBackgroundColor", 0x142E86C8)
-          } else {
-            cell.setInt(R.id.cell_root, "setBackgroundColor", Color.TRANSPARENT)
+          val tint = when {
+            isSelected && palette.light -> 0x260E9E86
+            isSelected -> 0x2525F4C8
+            isToday && palette.light -> 0x1A2E86C8
+            isToday -> 0x142E86C8
+            else -> Color.TRANSPARENT
           }
+          cell.setInt(R.id.cell_root, "setBackgroundColor", tint)
 
           cell.setOnClickPendingIntent(
             R.id.cell_root,
@@ -269,11 +290,11 @@ class CalendarWidgetProvider : AppWidgetProvider() {
       val selDay = data.days[selected]
       val label = selected.takeLast(5)
       val summary = when {
-        selDay == null -> "$label  ·  ${context.getString(R.string.widget_cal_empty)}"
+        selDay == null -> "$label  ·  ${localized.getString(R.string.widget_cal_empty)}"
         else -> buildString {
           append(label)
           append("  ·  ")
-          append(context.getString(R.string.widget_cal_tasks))
+          append(localized.getString(R.string.widget_cal_tasks))
           append(" ${selDay.total}")
           if (selDay.done > 0) append(" (${selDay.done} ✓)")
           if (selDay.titles.isNotEmpty()) {
@@ -284,6 +305,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         }
       }
       views.setTextViewText(R.id.cal_summary, summary)
+      views.setTextColor(R.id.cal_summary, palette.muted)
       views.setTextViewTextSize(
         R.id.cal_summary, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(10f, scale),
       )

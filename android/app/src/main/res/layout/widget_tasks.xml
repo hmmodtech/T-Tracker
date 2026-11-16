@@ -1,16 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- To-do list widget: today's tasks + overdue, checkable from the launcher -->
+<!-- To-do list widget: today's tasks + upcoming plan, scrollable.
+     The list is a ListView filled by TasksWidgetService (RemoteViewsService),
+     which is the only supported way to get vertical scrolling in a widget.
+     Only RemoteViews-legal tags are used here. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="8dp"
     android:background="@drawable/widget_bg"
     android:clipToOutline="true">
 
     <!-- Accent rule: aqua → cyan-green glow -->
     <ImageView
+        android:id="@+id/w_accent"
         android:layout_width="match_parent"
         android:layout_height="3dp"
         android:layout_marginBottom="8dp"
@@ -63,11 +70,17 @@
         android:textSize="12sp"
         android:visibility="gone" />
 
-    <LinearLayout
-        android:id="@+id/w_rows"
+    <!-- Scrollable task list: up/down works without opening the app -->
+    <ListView
+        android:id="@+id/w_list"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:layout_marginTop="4dp"
-        android:orientation="vertical" />
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:scrollbars="none"
+        android:overScrollMode="never"
+        android:paddingBottom="4dp"
+        android:clipToPadding="false" />
 </LinearLayout>

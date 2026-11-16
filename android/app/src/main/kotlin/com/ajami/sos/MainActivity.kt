@@ -26,7 +26,7 @@ class MainActivity : FlutterFragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         val action = actionFrom(intent)
-        if (action != null) dispatch(action)
+        if (action != null) dispatchOrQueue(action)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -85,10 +85,12 @@ class MainActivity : FlutterFragmentActivity() {
                     result.success(null)
                 }
                 // Which screen the user asked for by tapping a widget.
+                // Payload: "action|taskId|day" so Dart can jump straight to
+                // the task page or the day page.
                 "consumeAction" -> {
-                    val action = pendingAction
+                    val payload = pendingAction
                     pendingAction = null
-                    result.success(action)
+                    result.success(payload)
                 }
                 else -> result.notImplemented()
             }
@@ -98,11 +100,30 @@ class MainActivity : FlutterFragmentActivity() {
         pendingAction?.let { dispatch(it) }
     }
 
-    private fun actionFrom(intent: Intent?): String? = when (intent?.action) {
-        "com.ajami.sos.NEW_TASK" -> "new_task"
-        "com.ajami.sos.PULL_MEMOS" -> "pull_memos"
-        "com.ajami.sos.WIDGET_SETTINGS" -> "widget_settings"
-        else -> null
+    private fun actionFrom(intent: Intent?): String? {
+        val day = intent?.getStringExtra(WidgetKeys.EXTRA_DAY).orEmpty()
+        val taskId = intent?.getIntExtra(WidgetKeys.EXTRA_TASK_ID, -1) ?: -1
+        return when (intent?.action) {
+            "com.ajami.sos.NEW_TASK" -> "new_task"
+            "com.ajami.sos.PULL_MEMOS" -> "pull_memos"
+            "com.ajami.sos.WIDGET_SETTINGS" -> "widget_settings"
+            // Tapping a task row opens that task's page.
+            WidgetKeys.ACTION_OPEN_TASK -> "open_task|$taskId|$day"
+            // Tapping a calendar day opens that day's page (tasks + memo).
+            WidgetKeys.ACTION_OPEN_DAY -> "open_day|$taskId|$day"
+            WidgetKeys.ACTION_OPEN_NOTES -> "open_notes|$taskId|$day"
+            else -> null
+        }
+    }
+
+    /** Some widget taps arrive while the app is already open. */
+    private fun dispatchOrQueue(action: String) {
+        val ch = channel
+        if (ch == null) {
+            pendingAction = action
+        } else {
+            ch.invokeMethod("openAction", action)
+        }
     }
 
     private fun dispatch(action: String) {

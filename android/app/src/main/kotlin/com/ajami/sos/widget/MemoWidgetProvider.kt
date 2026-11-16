@@ -70,7 +70,14 @@ class MemoWidgetProvider : AppWidgetProvider() {
 
       val data = WidgetData.load(context)
       val scale = WidgetStyle.scale(data)
+      val palette = WidgetStyle.palette(data)
       WidgetStyle.apply(context, views, data)
+
+      views.setTextColor(R.id.w_title, palette.green)
+      views.setTextColor(R.id.w_input, palette.text)
+      views.setTextColor(R.id.w_empty, palette.muted)
+      views.setColorFilter(R.id.w_send, palette.aqua)
+      views.setColorFilter(R.id.w_accent, palette.green)
 
       // Queued memos first (typed on the home screen, not yet in the DB), then
       // every memo stored in the app — not just today's.
@@ -87,6 +94,7 @@ class MemoWidgetProvider : AppWidgetProvider() {
       for (memo in merged) {
         val row = RemoteViews(context.packageName, R.layout.widget_memo_row)
         row.setTextViewText(R.id.row_title, memo.text)
+        row.setTextColor(R.id.row_title, palette.text)
         row.setTextViewTextSize(
           R.id.row_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(11f, scale),
         )
