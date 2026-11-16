@@ -443,7 +443,11 @@ class _HomeScreenState extends State<HomeScreen>
                       : Icons.light_mode_outlined,
                   color: kGreen,
                 ),
-                onPressed: () => s.setLightMode(!s.lightMode),
+                onPressed: () {
+                  s.setLightMode(!s.lightMode);
+                  // Widgets are drawn by native code, so tell them to recolour.
+                  WidgetBridge.pushSettings();
+                },
               ),
               IconButton(icon: const Icon(Icons.search), onPressed: _search),
               PopupMenuButton<String>(

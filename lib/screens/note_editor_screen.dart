@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
 import '../core/backdrop.dart';
@@ -26,8 +25,8 @@ class NoteEditorScreen extends StatefulWidget {
 
 class _NoteEditorScreenState extends State<NoteEditorScreen> {
   late final TextEditingController _title;
-  late final TextEditingController _body;
-  late final FocusNode _bodyFocus;
+  late final _RichController _body;
+  final FocusNode _focus = FocusNode();
 
   late DateTime _day;
   String? _color;
@@ -64,23 +63,25 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     super.initState();
     final n = widget.note;
     _title = TextEditingController(text: n?.title ?? '');
-    _body = TextEditingController(text: n?.text ?? '');
-    _bodyFocus = FocusNode();
+    _spans = List<NoteSpan>.from(n?.spans ?? const []);
+    _body = _RichController(
+      text: n?.text ?? '',
+      spans: _spans,
+      base: TextStyle(color: kText, fontSize: 15, height: 1.45),
+    );
     _day = n?.day ?? widget.day;
     _color = n?.colorHex;
-    _spans = List<NoteSpan>.from(n?.spans ?? const []);
     _recount();
 
     _title.addListener(_onChanged);
     _body.addListener(_onChanged);
-    _bodyFocus.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _title.dispose();
     _body.dispose();
-    _bodyFocus.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -107,25 +108,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool get _hasSelection =>
       _body.selection.isValid && _body.selection.start != _body.selection.end;
 
-  /// التنسيق الفعّال عند المؤشر (يقرأ من المقاطع المحفوظة).
-  void _syncToolbarToCursor() {
-    final pos = _sel.baseOffset.clamp(0, _body.text.length);
-    NoteSpan? hit;
-    for (final sp in _spans) {
-      if (pos >= sp.start && pos <= sp.end) hit = sp;
-    }
-    if (hit == null) return;
-    setState(() {
-      _bold = hit!.bold;
-      _italic = hit.italic;
-      _underline = hit.underline;
-      _strike = hit.strike;
-      _bullet = hit.bullet;
-      _heading = hit.heading;
-      _sizeDelta = hit.sizeDelta;
-    });
-  }
-
   /// يطبّق التنسيق الحالي على التحديد، أو يفعّله للكتابة القادمة.
   void _applyToSelection() {
     if (!_hasSelection) return;
@@ -146,61 +128,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         sizeDelta: _sizeDelta,
       );
       if (!span.isDefault) _spans.add(span);
+      _body.setSpans(_spans);
       _dirty = true;
     });
-  }
-
-  /// بناء النص المعروض من النص الخام + المقاطع.
-  TextSpan _buildSpan(String text, TextStyle base) {
-    if (_spans.isEmpty) return TextSpan(text: text, style: base);
-
-    // رتّب المقاطع حسب البداية، واملأ الفراغات بنص عادي.
-    final sorted = List<NoteSpan>.from(_spans)
-      ..sort((a, b) => a.start.compareTo(b.start));
-    final children = <TextSpan>[];
-    var cursor = 0;
-    for (final sp in sorted) {
-      final s0 = sp.start.clamp(0, text.length);
-      final e0 = sp.end.clamp(0, text.length);
-      if (e0 <= s0) continue;
-      if (s0 > cursor) {
-        children.add(TextSpan(text: text.substring(cursor, s0), style: base));
-      }
-      final from = s0 < cursor ? cursor : s0;
-      if (from >= e0) continue;
-      children.add(TextSpan(
-        text: text.substring(from, e0),
-        style: base.copyWith(
-          fontWeight: sp.bold ? FontWeight.w800 : null,
-          fontStyle: sp.italic ? FontStyle.italic : null,
-          decoration: _decoration(sp),
-          fontSize: base.fontSize! *
-              (1 + _headingScale(sp.heading) + sp.sizeDelta),
-          height: 1.45,
-        ),
-      ));
-      cursor = e0;
-    }
-    if (cursor < text.length) {
-      children.add(TextSpan(text: text.substring(cursor), style: base));
-    }
-    return TextSpan(style: base, children: children);
-  }
-
-  double _headingScale(int h) => switch (h) {
-        1 => 0.6,
-        2 => 0.35,
-        3 => 0.15,
-        _ => 0,
-      };
-
-  TextDecoration _decoration(NoteSpan sp) {
-    final parts = <TextDecoration>[];
-    if (sp.underline) parts.add(TextDecoration.underline);
-    if (sp.strike) parts.add(TextDecoration.lineThrough);
-    if (parts.isEmpty) return TextDecoration.none;
-    if (parts.length == 1) return parts.first;
-    return TextDecoration.combine(parts);
   }
 
   // ── saving ────────────────────────────────────────────────────────────────
@@ -297,7 +227,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, _) async {
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
         if (didPop) return;
         if (_dirty) {
           await _save(close: true);
@@ -571,44 +501,51 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
             maxLines: 2,
           ),
           Divider(color: kPetrol, height: 18),
-          // Body — a text field with a styled preview layer underneath keeps
-          // caret and selection exact while still showing rich formatting.
+          // A single editable field whose controller renders the saved
+          // formatting. This keeps caret, selection and scrolling exact even
+          // for very long notes — no overlay to desync.
           Expanded(
-            child: Stack(
-              children: [
-                if (_spans.isNotEmpty)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: SingleChildScrollView(
-                        child: RichText(
-                          textDirection: textDirection,
-                          text: _buildSpan(_body.text, base),
-                        ),
-                      ),
-                    ),
-                  ),
-                // The real, editable field. Its text is transparent when a
-                // formatted preview is drawn, so the caret stays exact.
-                Positioned.fill(
-                  child: BidiField(
-                    controller: _body,
-                    hintText: s(
-                      'Start writing… supports long text',
-                      'ابدأ الكتابة… يدعم النصوص الطويلة',
-                    ),
-                    style: base.copyWith(
-                      color: _spans.isEmpty ? kText : Colors.transparent,
-                    ),
-                    maxLines: null,
-                    expands: true,
-                    keyboardType: TextInputType.multiline,
-                    onChanged: (_) {},
-                  ),
-                ),
+            child: _rich(
+              textDirection: textDirection,
+              base: base,
+            ),
+          ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// حقل النص الغني: المتحكّم يرسم التنسيقات داخل TextField نفسه.
+  Widget _rich({required TextDirection textDirection, required TextStyle base}) {
+    return Directionality(
+      textDirection: textDirection,
+      child: TextField(
+        controller: _body,
+        focusNode: _focus,
+        maxLines: null,
+        expands: true,
+        keyboardType: TextInputType.multiline,
+        textAlign: textDirection == TextDirection.rtl
+            ? TextAlign.right
+            : TextAlign.left,
+        style: base,
+        decoration: InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          hintText: s(
+            'Start writing… supports long text',
+            'ابدأ الكتابة… يدعم النصوص الطويلة',
+          ),
+          hintStyle: TextStyle(color: kMuted),
+        ),
+        onChanged: (_) {
+          _onChanged();
+          // Redraw so the formatting of a fresh selection shows up.
+          setState(() {});
+        },
       ),
     );
   }
@@ -639,5 +576,86 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   Color _hex(String hex) {
     final h = hex.replaceFirst('#', '');
     return Color(int.parse('FF$h', radix: 16));
+  }
+}
+
+/// متحكّم يعرض النص مع تنسيقاته داخل حقل تحرير واحد.
+///
+/// Flutter لا يملك محرّر نصوص غني جاهزاً، والحل القياسي هو بناء Span من
+/// المقاطع المحفوظة وإعادة بنائه عند كل تغيير. هذا يحافظ على المؤشر
+/// والتحديد والتمرير صحيحاً حتى مع النصوص الطويلة.
+class _RichController extends TextEditingController {
+  /// الخاصية الفعلية — استخدم [_setSpans] لتحديثها مع إعادة الرسم.
+  List<NoteSpan> _spans;
+  List<NoteSpan> get spans => _spans;
+
+  final TextStyle base;
+
+  _RichController({
+    required String text,
+    required List<NoteSpan> spans,
+    required this.base,
+  })  : _spans = List<NoteSpan>.from(spans),
+        super(text: text);
+
+  /// يحدّث التنسيقات ويعيد بناء النص المعروض.
+  void setSpans(List<NoteSpan> value) {
+    _spans = List<NoteSpan>.from(value);
+    notifyListeners();
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    if (_spans.isEmpty) {
+      return TextSpan(text: text, style: style);
+    }
+    final sorted = List<NoteSpan>.from(_spans)
+      ..sort((a, b) => a.start.compareTo(b.start));
+    final children = <TextSpan>[];
+    var cursor = 0;
+    for (final sp in sorted) {
+      final s0 = sp.start.clamp(0, text.length);
+      final e0 = sp.end.clamp(0, text.length);
+      if (e0 <= cursor) continue;
+      final from = s0 < cursor ? cursor : s0;
+      if (from > cursor) {
+        children.add(TextSpan(text: text.substring(cursor, from)));
+      }
+      children.add(TextSpan(
+        text: text.substring(from, e0),
+        style: (style ?? base).copyWith(
+          fontWeight: sp.bold ? FontWeight.w800 : null,
+          fontStyle: sp.italic ? FontStyle.italic : null,
+          decoration: _deco(sp),
+          fontSize: ((style ?? base).fontSize ?? 15) *
+              (1 + _heading(sp.heading) + sp.sizeDelta),
+        ),
+      ));
+      cursor = e0;
+    }
+    if (cursor < text.length) {
+      children.add(TextSpan(text: text.substring(cursor)));
+    }
+    return TextSpan(style: style, children: children);
+  }
+
+  double _heading(int h) => switch (h) {
+        1 => 0.6,
+        2 => 0.35,
+        3 => 0.15,
+        _ => 0,
+      };
+
+  TextDecoration _deco(NoteSpan sp) {
+    final parts = <TextDecoration>[];
+    if (sp.underline) parts.add(TextDecoration.underline);
+    if (sp.strike) parts.add(TextDecoration.lineThrough);
+    if (parts.isEmpty) return TextDecoration.none;
+    if (parts.length == 1) return parts.first;
+    return TextDecoration.combine(parts);
   }
 }

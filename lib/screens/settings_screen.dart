@@ -183,6 +183,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       setState(() {
                         appState.setLightMode(v);
                       });
+                      // Recolour every widget right away (light vs dark palette).
+                      WidgetBridge.pushSettings();
                     },
                   )),
                   _card(SwitchListTile(
@@ -242,8 +244,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         Text(
                           s(
-                            'Applies to the tasks, memo, result and calendar widgets.',
-                            'تُطبّق على ودجت المهام والميمو والنتيجة والتقويم.',
+                            'Applies to the tasks, memo, notes, result and calendar widgets.',
+                            'تُطبّق على ودجت المهام والميمو والملاحظات والنتيجة والتقويم.',
                           ),
                           style: TextStyle(fontSize: 12, color: kMuted),
                         ),
