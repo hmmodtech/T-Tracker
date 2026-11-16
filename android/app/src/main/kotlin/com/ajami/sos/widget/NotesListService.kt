@@ -41,7 +41,7 @@ class NotesListFactory(private val context: Context) :
     val note = items.getOrNull(position) ?: return null
     val res = RemoteViews(context.packageName, R.layout.widget_notes_row)
 
-    res.setTextViewText(R.id.note_title, note.title.ifEmpty { note.text.take(60) })
+    res.setTextViewText(R.id.note_title, note.title.ifEmpty { note.preview.take(60) })
     res.setTextViewTextSize(
       R.id.note_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
     )

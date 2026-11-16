@@ -44,8 +44,6 @@ class NotesWidgetProvider : AppWidgetProvider() {
       val data = WidgetData.load(context)
       val scale = WidgetStyle.scale(data)
       val palette = WidgetStyle.palette(data)
-      val res = WidgetStrings.of(context, data).resources
-
       WidgetStyle.apply(context, views, data)
       views.setTextColor(R.id.w_title, palette.green)
       views.setTextColor(R.id.w_count, palette.mutedGreen)
@@ -85,7 +83,7 @@ class NotesWidgetProvider : AppWidgetProvider() {
         WidgetKeys.REQ_NOTES + 1,
         Intent(context, MainActivity::class.java).apply {
           action = WidgetKeys.ACTION_OPEN_NOTES
-          data = Uri.parse("sos://notes/new")
+          setData(Uri.parse("sos://notes/new"))
           putExtra(WidgetKeys.EXTRA_OPEN, "new")
           flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         },
@@ -93,8 +91,6 @@ class NotesWidgetProvider : AppWidgetProvider() {
       )
       views.setOnClickPendingIntent(R.id.w_add, newNote)
 
-      // Unused but keeps lint quiet about the localised context.
-      @Suppress("UNUSED_EXPRESSION") res
       return views
     }
   }
