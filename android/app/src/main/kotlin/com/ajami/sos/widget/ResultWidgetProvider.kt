@@ -49,12 +49,12 @@ class ResultWidgetProvider : AppWidgetProvider() {
       val palette = WidgetStyle.palette(data)
       WidgetStyle.apply(context, views, data)
 
-      views.setColorFilter(R.id.w_accent, palette.green)
+      WidgetStyle.tint(views, R.id.w_accent, palette.green)
       views.setTextColor(R.id.w_big, palette.mint)
       views.setTextColor(R.id.w_count, palette.muted)
       views.setTextColor(R.id.w_yesterday, palette.text)
       views.setTextColor(R.id.w_week, palette.aqua)
-      views.setColorFilter(R.id.w_refresh, palette.green)
+      WidgetStyle.tint(views, R.id.w_refresh, palette.green)
 
       views.setTextViewText(R.id.w_big, "${data.rateToday}%")
       views.setTextViewText(

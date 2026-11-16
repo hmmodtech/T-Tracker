@@ -182,7 +182,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
       views.setTextColor(R.id.cal_month, palette.green)
       views.setTextColor(R.id.cal_prev, palette.green)
       views.setTextColor(R.id.cal_next, palette.green)
-      views.setColorFilter(R.id.cal_accent, palette.green)
+      WidgetStyle.tint(views, R.id.cal_accent, palette.green)
       views.setTextViewTextSize(
         R.id.cal_month, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
       )

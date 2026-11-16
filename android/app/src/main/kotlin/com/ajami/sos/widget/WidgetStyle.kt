@@ -110,6 +110,15 @@ object WidgetStyle {
   }
 
   /**
+   * Tints an ImageView. RemoteViews has no `setColorFilter` overload of its
+   * own, so the whitelisted `setInt` bridge is used to reach
+   * `ImageView.setColorFilter(int)` — allowed since API 21 and our minSdk is 24.
+   */
+  fun tint(views: RemoteViews, viewId: Int, color: Int) {
+    views.setInt(viewId, "setColorFilter", color)
+  }
+
+  /**
    * Recolours the parts of a task row that layouts cannot theme on their own.
    * Call after the row's text has been set.
    */
@@ -122,10 +131,7 @@ object WidgetStyle {
   ) {
     row.setTextColor(R.id.row_title, p.titleColor(done))
     row.setTextColor(R.id.row_sub, p.muted)
-    row.setColorFilter(
-      R.id.row_check,
-      if (done) p.green else p.muted,
-    )
+    tint(row, R.id.row_check, if (done) p.green else p.muted)
     row.setTextColor(
       R.id.row_tag,
       when {

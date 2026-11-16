@@ -76,8 +76,8 @@ class MemoWidgetProvider : AppWidgetProvider() {
       views.setTextColor(R.id.w_title, palette.green)
       views.setTextColor(R.id.w_input, palette.text)
       views.setTextColor(R.id.w_empty, palette.muted)
-      views.setColorFilter(R.id.w_send, palette.aqua)
-      views.setColorFilter(R.id.w_accent, palette.green)
+      WidgetStyle.tint(views, R.id.w_send, palette.aqua)
+      WidgetStyle.tint(views, R.id.w_accent, palette.green)
 
       // Queued memos first (typed on the home screen, not yet in the DB), then
       // every memo stored in the app — not just today's.

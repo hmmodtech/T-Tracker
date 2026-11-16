@@ -102,9 +102,10 @@ class TasksWidgetProvider : AppWidgetProvider() {
 
       // Scrollable list: the RemoteViewsService builds the rows lazily and
       // handles both tap-to-open and tap-to-tick.
+      // `Intent.filterEquals` comparisons need a unique data URI per widget,
+      // otherwise Android reuses a stale adapter.
       val adapter = Intent(context, TasksWidgetService::class.java).apply {
-        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
-        data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
+        setData(Uri.parse("sos://widget/tasks/${context.packageName}"))
       }
       views.setRemoteAdapter(R.id.w_list, adapter)
       views.setEmptyView(R.id.w_list, R.id.w_empty)
@@ -136,8 +137,8 @@ class TasksWidgetProvider : AppWidgetProvider() {
       views.setTextColor(R.id.w_title, palette.green)
       views.setTextColor(R.id.w_count, palette.mutedGreen)
       views.setTextColor(R.id.w_empty, palette.muted)
-      views.setColorFilter(R.id.w_add, palette.aqua)
-      views.setColorFilter(R.id.w_accent, palette.green)
+      WidgetStyle.tint(views, R.id.w_add, palette.aqua)
+      WidgetStyle.tint(views, R.id.w_accent, palette.green)
 
       views.setOnClickPendingIntent(R.id.w_add, newTaskIntent(context))
       return views
