@@ -229,7 +229,7 @@ class Note {
   final bool pinned;
   final DateTime updatedAt;
 
-  const Note({
+  Note({
     required this.id,
     required this.day,
     required this.text,
@@ -238,9 +238,7 @@ class Note {
     this.spans = const [],
     this.pinned = false,
     DateTime? updatedAt,
-  }) : updatedAt = updatedAt ?? _epoch;
-
-  static final DateTime _epoch = DateTime.fromMillisecondsSinceEpoch(0);
+  }) : updatedAt = updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
 
   /// أول سطر كعنوان مقترح.
   String get displayTitle {

@@ -95,7 +95,11 @@ bool isNeutral(String? text) => detectDir(text) == TextDir.neutral;
 TextDirection directionFor(String? text) {
   final d = detectDir(text);
   if (d == TextDir.neutral) {
-    return Directionality.maybeOf(_fallbackContext) ?? TextDirection.ltr;
+    final ctx = _fallbackContext;
+    if (ctx != null && ctx.mounted) {
+      return Directionality.maybeOf(ctx) ?? TextDirection.ltr;
+    }
+    return TextDirection.ltr;
   }
   return d == TextDir.rtl ? TextDirection.rtl : TextDirection.ltr;
 }
