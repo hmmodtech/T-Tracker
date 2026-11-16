@@ -53,9 +53,11 @@ class NotesFactory(private val context: Context) : RemoteViewsService.RemoteView
       R.id.row_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(11f, scale),
     )
     res.setTextColor(R.id.row_title, palette.text)
-    if (WidgetStrings.isRtl(memo.text)) {
-      res.setInt(R.id.row_title, "setTextDirection", 3)
-    }
+    res.setInt(
+      R.id.row_title,
+      "setTextDirection",
+      if (WidgetStrings.isRtl(memo.text)) 3 else 2,
+    )
 
     // Tapping the row opens that note in the app.
     res.setOnClickFillInIntent(

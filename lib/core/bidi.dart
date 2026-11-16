@@ -30,41 +30,27 @@ bool _isLtrRune(int c) =>
     (c >= 0x0400 && c <= 0x04FF) || // Cyrillic
     (c >= 0x0900 && c <= 0x0DFF); // Indic
 
-/// يحدّد اتجاه النص حسب أول حرف ذي اتجاه، مع ترجيح العربي عند التعادل.
+/// يحدّد اتجاه النص.
+///
+/// القاعدة المهمة: أي نص **مختلط** (عربي + إنجليزي) يُعرض RTL.
+/// الاتجاه الأساسي LTR كان يقلب الجملة العربية ويبعثر الكلمات الإنجليزية
+/// بينها؛ الاتجاه الأساسي RTL يحافظ على كل كلمة إنجليزية ككتلة سليمة
+/// داخل السطر العربي.
 TextDir detectDir(String? text) {
   if (text == null || text.isEmpty) return TextDir.neutral;
-  var firstRtl = -1;
-  var firstLtr = -1;
+  var hasRtl = false;
+  var hasLtr = false;
   for (final rune in text.runes) {
     if (_isRtlRune(rune)) {
-      if (firstRtl < 0) firstRtl = rune;
-      if (firstLtr < 0) continue;
-      break;
+      hasRtl = true;
+    } else if (_isLtrRune(rune)) {
+      hasLtr = true;
     }
-    if (_isLtrRune(rune)) {
-      if (firstLtr < 0) firstLtr = rune;
-      if (firstRtl < 0) continue;
-      break;
-    }
+    if (hasRtl && hasLtr) return TextDir.rtl;
   }
-  if (firstRtl >= 0 && firstLtr < 0) return TextDir.rtl;
-  if (firstLtr >= 0 && firstRtl < 0) return TextDir.ltr;
-  if (firstRtl >= 0 && firstLtr >= 0) {
-    // الاثنان موجودان: الأول في النص هو الحاكم.
-    final rtlIndex = _firstIndexOf(text, _isRtlRune);
-    final ltrIndex = _firstIndexOf(text, _isLtrRune);
-    return rtlIndex <= ltrIndex ? TextDir.rtl : TextDir.ltr;
-  }
+  if (hasRtl) return TextDir.rtl;
+  if (hasLtr) return TextDir.ltr;
   return TextDir.neutral;
-}
-
-int _firstIndexOf(String s, bool Function(int) test) {
-  var i = 0;
-  for (final rune in s.runes) {
-    if (test(rune)) return i;
-    i++;
-  }
-  return 1 << 30;
 }
 
 bool containsArabic(String? text) {

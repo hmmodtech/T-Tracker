@@ -73,9 +73,13 @@ class TasksFactory(private val context: Context) : RemoteViewsService.RemoteView
     res.setTextViewText(R.id.row_title, task.title)
     // Arabic (or mixed) titles read right-to-left even on an English phone,
     // which is what stops English words inside them from being scrambled.
-    if (WidgetStrings.isRtl(task.title)) {
-      res.setInt(R.id.row_title, "setTextDirection", 3) // TEXT_DIRECTION_RTL
-    }
+    // 3 = TEXT_DIRECTION_RTL, 2 = TEXT_DIRECTION_LTR. Setting it explicitly
+    // both ways matters because rows are recycled between recycling bounds.
+    res.setInt(
+      R.id.row_title,
+      "setTextDirection",
+      if (WidgetStrings.isRtl(task.title)) 3 else 2,
+    )
     res.setTextViewTextSize(
       R.id.row_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
     )

@@ -46,9 +46,11 @@ class NotesListFactory(private val context: Context) :
       R.id.note_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
     )
     res.setTextColor(R.id.note_title, palette.text)
-    if (WidgetStrings.isRtl(note.title)) {
-      res.setInt(R.id.note_title, "setTextDirection", 3)
-    }
+    res.setInt(
+      R.id.note_title,
+      "setTextDirection",
+      if (WidgetStrings.isRtl(note.title)) 3 else 2,
+    )
 
     if (note.preview.isNotEmpty() && note.title.isNotEmpty()) {
       res.setViewVisibility(R.id.note_preview, View.VISIBLE)
@@ -57,9 +59,11 @@ class NotesListFactory(private val context: Context) :
         R.id.note_preview, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(10f, scale),
       )
       res.setTextColor(R.id.note_preview, palette.muted)
-      if (WidgetStrings.isRtl(note.preview)) {
-        res.setInt(R.id.note_preview, "setTextDirection", 3)
-      }
+      res.setInt(
+        R.id.note_preview,
+        "setTextDirection",
+        if (WidgetStrings.isRtl(note.preview)) 3 else 2,
+      )
     } else {
       res.setViewVisibility(R.id.note_preview, View.GONE)
     }

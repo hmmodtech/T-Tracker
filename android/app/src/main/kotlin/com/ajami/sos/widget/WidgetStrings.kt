@@ -28,15 +28,23 @@ object WidgetStrings {
   }
 
   /** `true` when the row title should be laid out right-to-left. */
+  /**
+   * أي نص مختلط (عربي + إنجليزي) يُعرض RTL.
+   *
+   * سابقاً كان أول حرف هو الحاكم، فجملة تبدأ بكلمة إنجليزية وتكمل بالعربية
+   * تُعرض LTR فتتبعثر الكلمات. الآن RTL هو الأساس للنص المختلط، فتبقى كل
+   * كلمة إنجليزية ككتلة سليمة داخل السطر العربي.
+   */
   fun isRtl(text: String): Boolean {
+    var hasRtl = false
     for (c in text) {
       val code = c.code
       if (code in 0x0590..0x08FF || code in 0xFB50..0xFEFF || code in 0x1EE00..0x1EEFF) {
-        return true
+        hasRtl = true
+        break
       }
-      if (code in 0x41..0x5A || code in 0x61..0x7A) return false
     }
-    return false
+    return hasRtl
   }
 
   fun doneOf(context: Context): String =
