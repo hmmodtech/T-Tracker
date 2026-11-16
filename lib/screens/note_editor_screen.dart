@@ -510,9 +510,6 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               base: base,
             ),
           ),
-              ],
-            ),
-          ),
         ],
       ),
     );
