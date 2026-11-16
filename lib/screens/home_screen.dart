@@ -64,6 +64,15 @@ class _HomeScreenState extends State<HomeScreen>
       onOpenDay: (day) async {
         await openDayFromWidget(day);
       },
+      // Tapping a note row opens that note in the editor.
+      onOpenNote: (noteId, day) async {
+        await openNoteFromWidget(noteId, day);
+      },
+      // The notes widget's + opens a fresh note.
+      onOpenNotes: () async {
+        if (!mounted) return;
+        await _openNote(null);
+      },
       // Long-pressing a widget opens the widget settings.
       onSettings: () async {
         if (!mounted) return;
@@ -88,6 +97,10 @@ class _HomeScreenState extends State<HomeScreen>
       },
       onOpenTask: openTaskFromWidget,
       onOpenDay: openDayFromWidget,
+      onOpenNote: openNoteFromWidget,
+      onOpenNotes: () async {
+        if (mounted) await _openNote(null);
+      },
       onSettings: () async {
         if (!mounted) return;
         await Navigator.push(
@@ -258,6 +271,22 @@ class _HomeScreenState extends State<HomeScreen>
       _focused = d;
     });
     await _load();
+  }
+
+  /// يفتح ملاحظة معيّنة (أو محرّراً جديداً) قادمة من ودجت الملاحظات.
+  Future<void> openNoteFromWidget(int noteId, String day) async {
+    if (day.isNotEmpty) await openDayFromWidget(day);
+    final all = await Db.instance.allNotes();
+    Note? match;
+    for (final n in all) {
+      if (n.id == noteId) {
+        match = n;
+        break;
+      }
+    }
+    if (!mounted) return;
+    await _openNote(match);
+    if (mounted) await _load();
   }
 
   Future<void> openTaskFromWidget(int taskId, String day) async {

@@ -61,23 +61,6 @@ class NotesWidgetProvider : AppWidgetProvider() {
         if (notes.isEmpty()) "" else "${notes.size}",
       )
 
-      val adapter = Intent(context, NotesListService::class.java).apply {
-        setData(Uri.parse("sos://widget/noteslist/${context.packageName}"))
-      }
-      views.setRemoteAdapter(R.id.w_list, adapter)
-      views.setEmptyView(R.id.w_list, R.id.w_empty)
-
-      // Tap a note -> open the notes screen in the app.
-      views.setPendingIntentTemplate(
-        R.id.w_list,
-        PendingIntent.getActivity(
-          context,
-          WidgetKeys.REQ_NOTES,
-          notesPageIntent(context, WidgetData.dayKey(0)),
-          WidgetStyle.pendingFlags(),
-        ),
-      )
-
       val newNote = PendingIntent.getActivity(
         context,
         WidgetKeys.REQ_NOTES + 1,
@@ -90,6 +73,28 @@ class NotesWidgetProvider : AppWidgetProvider() {
         WidgetStyle.pendingFlags(),
       )
       views.setOnClickPendingIntent(R.id.w_add, newNote)
+
+      // The list is backed by NotesListService; row taps fill in the note id.
+      views.setRemoteAdapter(
+        R.id.w_list,
+        Intent(context, NotesListService::class.java).apply {
+          setData(Uri.parse("sos://widget/notelist/${context.packageName}"))
+        },
+      )
+      views.setEmptyView(R.id.w_list, R.id.w_empty)
+      views.setPendingIntentTemplate(
+        R.id.w_list,
+        PendingIntent.getActivity(
+          context,
+          WidgetKeys.REQ_NOTES + 7,
+          Intent(context, MainActivity::class.java).apply {
+            action = WidgetKeys.ACTION_OPEN_NOTE
+            setData(Uri.parse("sos://note/template"))
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+          },
+          WidgetStyle.pendingFlags(),
+        ),
+      )
 
       return views
     }

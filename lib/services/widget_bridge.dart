@@ -344,6 +344,8 @@ class WidgetBridge {
     required Future<void> Function(int taskId, String day) onOpenTask,
     required Future<void> Function(String day) onOpenDay,
     Future<void> Function()? onSettings,
+    Future<void> Function(int noteId, String day)? onOpenNote,
+    Future<void> Function()? onOpenNotes,
   }) async {
     final parts = raw.split('|');
     final action = parts.isNotEmpty ? parts[0] : raw;
@@ -356,6 +358,11 @@ class WidgetBridge {
         if (taskId >= 0) await onOpenTask(taskId, day);
       case 'open_day':
         if (day.isNotEmpty) await onOpenDay(day);
+      case 'open_note':
+        if (onOpenNote != null && taskId >= 0) await onOpenNote(taskId, day);
+        else if (onOpenNotes != null) await onOpenNotes();
+      case 'open_notes':
+        if (onOpenNotes != null) await onOpenNotes();
       case 'widget_settings':
         if (onSettings != null) await onSettings();
     }
@@ -368,6 +375,8 @@ class WidgetBridge {
     Future<void> Function()? onSettings,
     Future<void> Function(int taskId, String day)? onOpenTask,
     Future<void> Function(String day)? onOpenDay,
+    Future<void> Function(int noteId, String day)? onOpenNote,
+    Future<void> Function()? onOpenNotes,
   }) {
     _channel.setMethodCallHandler((call) async {
       try {
@@ -389,6 +398,14 @@ class WidgetBridge {
           }
           if (action == 'open_day' && onOpenDay != null && day.isNotEmpty) {
             await onOpenDay(day);
+          }
+          if (action == 'open_note' && onOpenNote != null && taskId >= 0) {
+            await onOpenNote(taskId, day);
+          } else if (action == 'open_note' && onOpenNotes != null) {
+            await onOpenNotes();
+          }
+          if (action == 'open_notes' && onOpenNotes != null) {
+            await onOpenNotes();
           }
         }
       } catch (e) {

@@ -8,6 +8,7 @@ object WidgetKeys {
 
   const val EXTRA_TASK_ID = "task_id"
   const val EXTRA_DAY = "day"
+  const val EXTRA_NOTE_ID = "note_id"
   const val EXTRA_TEXT = "text"
   const val EXTRA_WIDGET_ID = "widget_id"
 
@@ -25,6 +26,7 @@ object WidgetKeys {
   const val ACTION_OPEN_TASK = "com.ajami.sos.OPEN_TASK"
   const val ACTION_OPEN_DAY = "com.ajami.sos.OPEN_DAY"
   const val ACTION_OPEN_NOTES = "com.ajami.sos.OPEN_NOTES"
+  const val ACTION_OPEN_NOTE = "com.ajami.sos.OPEN_NOTE"
 
   /** Fill-in intent selectors used by TasksWidgetService. */
   const val EXTRA_OPEN = "open_kind"

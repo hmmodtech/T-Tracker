@@ -80,8 +80,9 @@ class NotesListFactory(private val context: Context) :
       R.id.note_row_root,
       Intent().apply {
         putExtra(WidgetKeys.EXTRA_OPEN, WidgetKeys.OPEN_NOTE)
+        putExtra(WidgetKeys.EXTRA_NOTE_ID, note.id)
         putExtra(WidgetKeys.EXTRA_DAY, note.day)
-        data = Uri.parse("sos://note/${note.id}")
+        setData(Uri.parse("sos://note/${note.id}"))
       },
     )
     return res

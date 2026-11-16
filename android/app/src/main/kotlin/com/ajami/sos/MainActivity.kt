@@ -103,6 +103,7 @@ class MainActivity : FlutterFragmentActivity() {
     private fun actionFrom(intent: Intent?): String? {
         val day = intent?.getStringExtra(WidgetKeys.EXTRA_DAY).orEmpty()
         val taskId = intent?.getIntExtra(WidgetKeys.EXTRA_TASK_ID, -1) ?: -1
+        val noteId = intent?.getIntExtra(WidgetKeys.EXTRA_NOTE_ID, -1) ?: -1
         return when (intent?.action) {
             "com.ajami.sos.NEW_TASK" -> "new_task"
             "com.ajami.sos.PULL_MEMOS" -> "pull_memos"
@@ -112,6 +113,8 @@ class MainActivity : FlutterFragmentActivity() {
             // Tapping a calendar day opens that day's page (tasks + memo).
             WidgetKeys.ACTION_OPEN_DAY -> "open_day|$taskId|$day"
             WidgetKeys.ACTION_OPEN_NOTES -> "open_notes|$taskId|$day"
+            // Tapping a note row opens that note's editor.
+            WidgetKeys.ACTION_OPEN_NOTE -> "open_note|$noteId|$day"
             else -> null
         }
     }
