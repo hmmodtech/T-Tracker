@@ -228,18 +228,24 @@ ThemeData matrixTheme() => appTheme();
 /// بطاقة زجاجية شفافة. الشفافية تتحكم فيها من الإعدادات.
 BoxDecoration glass({Color? border, bool glow = true}) {
   final l = isLight;
+  // في الوضع الفاتح لا نسمح للكارت بأن يشفّ أكثر من اللازم: النص الداكن
+  // فوق الصورة الشفافة يصبح غير مقروء. حد أدنى 0.82 يبقي النص واضحاً
+  // بينما يحافظ على إحساس الزجاج.
+  final opacity = l
+      ? appState.cardOpacity.clamp(0.82, 1.0)
+      : appState.cardOpacity;
   return BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: l
           ? [
-              Colors.white.withValues(alpha: appState.cardOpacity),
-              const Color(0xFFF2F7FB).withValues(alpha: appState.cardOpacity),
+              Colors.white.withValues(alpha: opacity),
+              const Color(0xFFF2F7FB).withValues(alpha: opacity),
             ]
           : [
-              const Color(0xFF0C182A).withValues(alpha: appState.cardOpacity),
-              const Color(0xFF060C18).withValues(alpha: appState.cardOpacity),
+              const Color(0xFF0C182A).withValues(alpha: opacity),
+              const Color(0xFF060C18).withValues(alpha: opacity),
             ],
     ),
     borderRadius: BorderRadius.circular(14),

@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 
+import 'theme.dart';
+
 /// اتجاه النص الذكي (Bidi).
 ///
 /// المشكلة: لو كانت لغة التطبيق إنجليزي وكتبت «اجتماع مع UNRWA الساعة 10»
 /// فالإطار يربط الكلمات الإنجليزية من اليسار لليمين ويعكس ترتيب المقاطع.
 ///
-/// الحل: نحسب اتجاه أول حرف «قوي» في النص (حرف عربي/عبري = RTL، حرف لاتيني
-/// = LTR) ونطبّق الاتجاه الناتج على النص نفسه — تماماً كما يفعل Word.
-/// وإذا كان النص يحتوي على سطر عربي واحد على الأقل نُرجّح العربي.
+/// الحل: نطبّق الاتجاه على النص نفسه — تماماً كما يفعل Word.
+///  • عربي فقط → RTL
+///  • لاتيني فقط → LTR
+///  • مختلط → RTL دائماً، لأن هذا يبقي كل كلمة إنجليزية ككتلة سليمة
+///    داخل السطر العربي (الاتجاه الأساسي LTR هو ما يبعثر الكلمات).
 ///
 /// النتيجة: الكلمات الإنجليزية تبقى مقروءة داخل جملة عربية، والعكس صحيح.
 enum TextDir { rtl, ltr, neutral }
@@ -146,7 +150,12 @@ class BidiText extends StatelessWidget {
             ? TextAlign.start
             : (dir == TextDir.rtl ? TextAlign.right : TextAlign.left));
 
-    final base = style ?? DefaultTextStyle.of(context).style;
+    // بدون لون صريح قد يرث النص لوناً غير مقروء من محيط مختلف. نثبّت
+    // لون النص على لون الثيم الحالي، مع احترام أي لون يمرّره المستدعي.
+    final inherited = DefaultTextStyle.of(context).style;
+    final base = (style ?? inherited).copyWith(
+      color: style?.color ?? inherited.color ?? kText,
+    );
 
     if (selectable) {
       return SelectableText(
