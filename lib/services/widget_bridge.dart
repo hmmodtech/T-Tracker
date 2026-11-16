@@ -137,6 +137,8 @@ class WidgetBridge {
       }
       return {
         'id': id,
+        // The widget title follows the app language, so switching to English
+        // shows the English title of an Arabic-only imported task as well.
         'title': t.title(ar),
         'subtitle': items.isEmpty ? '' : '$complete/${items.length}',
         'done': done.contains(doneKey(id, day)),

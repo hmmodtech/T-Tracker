@@ -92,8 +92,28 @@ class Task {
     required this.updatedAt,
   });
 
-  String title(bool ar) => ar && titleAr.isNotEmpty ? titleAr : titleEn;
-  String details(bool ar) => ar && detailsAr.isNotEmpty ? detailsAr : detailsEn;
+  /// عنوان المهمة حسب لغة العرض.
+  ///
+  /// كانت القاعدة "استخدم العربي إن كان موجوداً"، وهذا يجعل مهمة مستوردة
+  /// بالعربي فقط تبقى عربية حتى لو كانت لغة التطبيق إنجليزية. الآن:
+  ///  • عربي مطلوب وهناك نص عربي  → العربي
+  ///  • إنجليزي مطلوب وهناك نص إنجليزي → الإنجليزي
+  ///  • وإلا نرجع للنص الوحيد المتوفّر (بأي لغة) بدل عرض نص فارغ.
+  String title(bool ar) {
+    final e = titleEn.trim();
+    final a = titleAr.trim();
+    if (ar) return a.isNotEmpty ? a : e;
+    if (e.isNotEmpty) return e;
+    return a;
+  }
+
+  String details(bool ar) {
+    final e = detailsEn.trim();
+    final a = detailsAr.trim();
+    if (ar) return a.isNotEmpty ? a : e;
+    if (e.isNotEmpty) return e;
+    return a;
+  }
 
   /// وقت الجرس في يوم معين
   DateTime? bellOn(DateTime day) => remindAt == null
