@@ -32,10 +32,20 @@ object WidgetActions {
     } catch (_: Throwable) {
       // ignore
     }
+    try {
+      val manager = AppWidgetManager.getInstance(context)
+      val ids = manager.getAppWidgetIds(
+        ComponentName(context, MemoWidgetProvider::class.java),
+      )
+      for (id in ids) manager.notifyAppWidgetViewDataChanged(id, com.ajami.sos.R.id.w_list)
+    } catch (_: Throwable) {
+      // ignore
+    }
     TasksWidgetProvider.refresh(context)
     MemoWidgetProvider.refresh(context)
     ResultWidgetProvider.refresh(context)
     CalendarWidgetProvider.refresh(context)
+    NotesWidgetProvider.refresh(context)
   }
 
   /** True when at least one widget of any kind is on the home screen. */
@@ -46,6 +56,7 @@ object WidgetActions {
       MemoWidgetProvider::class.java,
       ResultWidgetProvider::class.java,
       CalendarWidgetProvider::class.java,
+      NotesWidgetProvider::class.java,
     ).any { manager.getAppWidgetIds(ComponentName(context, it)).isNotEmpty() }
   }
 }

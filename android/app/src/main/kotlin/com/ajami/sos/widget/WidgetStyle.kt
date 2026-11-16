@@ -104,6 +104,11 @@ object WidgetStyle {
     views.setInt(R.id.widget_root, "setBackgroundResource", res)
   }
 
+  /** PendingIntent flags used everywhere in the widget code. */
+  fun pendingFlags(): Int =
+    android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+      android.app.PendingIntent.FLAG_IMMUTABLE
+
   /** Convenience overload used by every provider. */
   fun apply(context: Context, views: RemoteViews, data: WidgetData.Snapshot) {
     applyOpacity(views, data.opacity, data.lightMode)

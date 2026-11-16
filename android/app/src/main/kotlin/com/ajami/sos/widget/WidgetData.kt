@@ -43,6 +43,16 @@ object WidgetData {
 
   data class Memo(val text: String, val day: String)
 
+  /** One entry of the notes widget: title + preview + colour. */
+  data class NoteEntry(
+    val id: Int,
+    val title: String,
+    val preview: String,
+    val day: String,
+    val color: String?,
+    val pinned: Boolean,
+  )
+
   /** One calendar cell: how many tasks, how many done, whether a memo exists. */
   data class Day(
     val key: String,
@@ -63,6 +73,7 @@ object WidgetData {
     val done7: Int = 0,
     val scheduled7: Int = 0,
     val memos: List<Memo> = emptyList(),
+    val notes: List<NoteEntry> = emptyList(),
     val upcoming: List<Task> = emptyList(),
     val days: Map<String, Day> = emptyMap(),
     val textScale: Float = 1f,
@@ -150,6 +161,21 @@ object WidgetData {
     }
 
     val settings = o.optJSONObject("settings")
+    val notesArr = o.optJSONArray("notes")
+    val notes = mutableListOf<NoteEntry>()
+    if (notesArr != null) {
+      for (i in 0 until notesArr.length()) {
+        val n = notesArr.optJSONObject(i) ?: continue
+        notes += NoteEntry(
+          id = n.optInt("id"),
+          title = n.optString("title"),
+          preview = n.optString("preview"),
+          day = n.optString("day"),
+          color = n.optString("color").takeIf { it.isNotEmpty() && it != "null" },
+          pinned = n.optBoolean("pinned"),
+        )
+      }
+    }
     return Snapshot(
       today = tasks("today"),
       overdue = tasks("overdue"),
@@ -166,6 +192,7 @@ object WidgetData {
       done7 = o.optInt("done7"),
       scheduled7 = o.optInt("scheduled7"),
       memos = memos,
+      notes = notes,
       generatedAt = o.optLong("generatedAt", modified),
       hasAppData = true,
     )

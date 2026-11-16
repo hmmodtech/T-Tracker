@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.view.View
 import android.util.TypedValue
 import android.widget.RemoteViews
@@ -66,8 +67,6 @@ class MemoWidgetProvider : AppWidgetProvider() {
     fun build(context: Context): RemoteViews {
       val views = RemoteViews(context.packageName, R.layout.widget_memo)
 
-      views.removeAllViews(R.id.w_rows)
-
       val data = WidgetData.load(context)
       val scale = WidgetStyle.scale(data)
       val palette = WidgetStyle.palette(data)
@@ -79,27 +78,20 @@ class MemoWidgetProvider : AppWidgetProvider() {
       WidgetStyle.tint(views, R.id.w_send, palette.aqua)
       WidgetStyle.tint(views, R.id.w_accent, palette.green)
 
-      // Queued memos first (typed on the home screen, not yet in the DB), then
-      // every memo stored in the app — not just today's.
-      val local = WidgetData.localMemos(context)
-      val fromDb = data.memos
-      val merged = (local + fromDb)
-        .distinctBy { it.text.trim() }
-        .take(5)
-
-      views.setViewVisibility(
-        R.id.w_empty,
-        if (merged.isEmpty()) View.VISIBLE else View.GONE,
-      )
-      for (memo in merged) {
-        val row = RemoteViews(context.packageName, R.layout.widget_memo_row)
-        row.setTextViewText(R.id.row_title, memo.text)
-        row.setTextColor(R.id.row_title, palette.text)
-        row.setTextViewTextSize(
-          R.id.row_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(11f, scale),
-        )
-        views.addView(R.id.w_rows, row)
+      val adapter = Intent(context, NotesWidgetService::class.java).apply {
+        setData(Uri.parse("sos://widget/notes/${context.packageName}"))
       }
+      views.setRemoteAdapter(R.id.w_list, adapter)
+      views.setEmptyView(R.id.w_list, R.id.w_empty)
+      views.setPendingIntentTemplate(
+        R.id.w_list,
+        PendingIntent.getActivity(
+          context, WidgetKeys.REQ_MEMO + 7,
+          notesPageIntent(context, WidgetData.dayKey(0)),
+          WidgetStyle.pendingFlags(),
+        ),
+      )
+
       views.setTextViewTextSize(
         R.id.w_input, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
       )

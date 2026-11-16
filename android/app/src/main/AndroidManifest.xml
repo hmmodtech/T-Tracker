@@ -74,6 +74,18 @@
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
 
+        <!-- Backs the scrollable notes list in the memo widget -->
+        <service
+            android:name=".widget.NotesWidgetService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- Backs the scrollable list in the dedicated notes widget -->
+        <service
+            android:name=".widget.NotesListService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <receiver
             android:name=".widget.MemoWidgetProvider"
             android:exported="false"
@@ -87,6 +99,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_memo_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.NotesWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_notes_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.ajami.sos.widget.REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_notes_info" />
         </receiver>
 
         <receiver

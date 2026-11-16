@@ -245,6 +245,19 @@ class WidgetBridge {
         for (final n in memos.take(8))
           {'text': n.text, 'day': dayKey(n.day)},
       ],
+      // ملاحظات غنية (عنوان + مقتطف) لودجت الملاحظات
+      'notes': [
+        for (final n in memos.take(60))
+          {
+            'id': n.id,
+            'title': n.displayTitle,
+            'preview': n.text.replaceAll('\n', ' '),
+            'day': dayKey(n.day),
+            'color': n.colorHex,
+            'pinned': n.pinned,
+            'spans': n.spans.length,
+          },
+      ],
       // المهام المجدولة القادمة (تُعرض في ودجت المهام تحت مهام اليوم)
       'upcoming': [
         for (final t in upcoming.take(6))
