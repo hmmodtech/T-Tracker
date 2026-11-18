@@ -125,17 +125,6 @@ object WidgetData {
   }
 
   private fun parseSnapshot(o: JSONObject, modified: Long): Snapshot {
-    fun tasks(key: String): List<Task> {
-      val arr = o.optJSONArray(key) ?: return emptyList()
-      return (0 until arr.length()).mapNotNull { i ->
-        try {
-          taskOf(arr.optJSONObject(i))
-        } catch (_: Throwable) {
-          null
-        }
-      }
-    }
-
     fun taskOf(t: JSONObject?): Task? {
       if (t == null) return null
       return Task(
@@ -150,6 +139,17 @@ object WidgetData {
         isMission = t.optBoolean("isMission"),
       )
     }
+    fun tasks(key: String): List<Task> {
+      val arr = o.optJSONArray(key) ?: return emptyList()
+      return (0 until arr.length()).mapNotNull { i ->
+        try {
+          taskOf(arr.optJSONObject(i))
+        } catch (_: Throwable) {
+          null
+        }
+      }
+    }
+
     val memos = (o.optJSONArray("memos") ?: JSONArray()).let { arr ->
       (0 until arr.length()).mapNotNull { i ->
         try {
