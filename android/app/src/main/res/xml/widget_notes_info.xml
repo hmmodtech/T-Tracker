@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notes widget: 3x3 by default, resizable -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_notes"
+    android:minWidth="180dp"
+    android:minHeight="140dp"
+    android:minResizeWidth="140dp"
+    android:minResizeHeight="90dp"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:previewImage="@drawable/widget_preview_notes"
+    android:targetCellWidth="3"
+    android:targetCellHeight="3"
+    android:description="@string/widget_notes_desc" />

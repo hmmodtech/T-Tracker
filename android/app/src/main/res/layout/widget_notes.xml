@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notes widget: scrollable list of every note, newest/pinned first.
+     Tapping a note opens the rich editor in the app. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="8dp"
+    android:background="@drawable/widget_bg"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/w_accent"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_marginBottom="8dp"
+        android:scaleType="fitXY"
+        android:contentDescription="@null"
+        android:src="@drawable/widget_glow_line" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/w_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/widget_notes_label"
+            android:textColor="@color/widget_green"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.06"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/w_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/widget_muted_green"
+            android:textSize="11sp" />
+
+        <ImageView
+            android:id="@+id/w_add"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:padding="5dp"
+            android:src="@android:drawable/ic_input_add"
+            android:contentDescription="@string/widget_add" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/w_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="@string/widget_notes_empty"
+        android:textColor="@color/widget_muted"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <ListView
+        android:id="@+id/w_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:scrollbars="none"
+        android:overScrollMode="never"
+        android:clipToPadding="false" />
+</LinearLayout>

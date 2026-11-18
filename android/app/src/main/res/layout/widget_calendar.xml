@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Month calendar widget: header + 7x6 day grid + selected-day summary.
+     Only RemoteViews-legal tags are used (LinearLayout / FrameLayout /
+     TextView / ImageView). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_bg"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/cal_accent"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_marginBottom="6dp"
+        android:scaleType="fitXY"
+        android:contentDescription="@null"
+        android:src="@drawable/widget_glow_line" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/cal_prev"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:gravity="center"
+            android:text="‹"
+            android:textColor="@color/widget_green"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/cal_month"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="@color/widget_green"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.04"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/cal_next"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:gravity="center"
+            android:text="›"
+            android:textColor="@color/widget_green"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Weekday header, filled at runtime so it follows the app language -->
+    <LinearLayout
+        android:id="@+id/cal_weekdays"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:orientation="horizontal" />
+
+    <LinearLayout
+        android:id="@+id/cal_grid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="2dp"
+        android:orientation="vertical" />
+
+    <TextView
+        android:id="@+id/cal_summary"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/widget_muted"
+        android:textSize="10sp"
+        android:maxLines="2"
+        android:ellipsize="end" />
+</LinearLayout>

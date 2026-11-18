@@ -10,7 +10,7 @@ Future<bool> unlockDevice() async {
     final supported = await _auth.isDeviceSupported();
     if (!supported) return true;
     return await _auth.authenticate(
-      localizedReason: appState.t('Unlock A.Jami SOS', 'افتح A.Jami SOS'),
+      localizedReason: appState.t('Unlock T-Tracker', 'افتح T-Tracker'),
       options: const AuthenticationOptions(stickyAuth: true),
     );
   } catch (_) {

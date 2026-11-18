@@ -3,13 +3,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:table_calendar/table_calendar.dart';
 import '../core/app_state.dart';
+import '../core/backdrop.dart';
+import '../core/bidi.dart';
 import '../core/theme.dart';
 import '../data/database.dart';
 import '../data/models.dart';
 import '../services/notifications.dart';
+import '../services/widget_bridge.dart';
+import 'notes_screen.dart';
+import 'note_editor_screen.dart';
 import 'search_screen.dart';
+import 'stats_screen.dart';
+import '../widgets/month_calendar.dart';
 import 'settings_screen.dart';
 import 'task_form_screen.dart';
 
@@ -20,23 +26,107 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final _memo = TextEditingController();
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver {
   DateTime _focused = DateTime.now();
   DateTime _selected = dateOnly(DateTime.now());
   List<Task> _tasks = [];
   Set<String> _done = {};
+
+  /// المجلد/القائمة المعروضة حالياً. null = «كل المهام».
+  String? _group;
+
+  /// عرض المهام التي لم تُنجز فقط (مثل تبويب «المهام» في To-Do).
+  bool _onlyOpen = false;
   List<Note> _notes = [];
+
+  /// yyyy-MM-dd → نصوص الملاحظات، لعرض نقطة الملاحظة في التقويم.
+  Map<String, List<String>> _notesByDay = {};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+    // A widget tap can arrive before the app finished starting; pick it up
+    // once the first frame is on screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _drainPending());
+    // Widget taps: + opens the new-task form, a row opens its task,
+    // a calendar day opens that day, and a note opens the editor.
+    WidgetBridge.listen(
+      onNewTask: () async {
+        _load();
+        if (mounted) await _openForm();
+      },
+      // Tapping a task row opens that task's page.
+      onOpenTask: (taskId, day) async {
+        await openTaskFromWidget(taskId, day);
+      },
+      // Tapping a calendar day opens that day's page with its memo.
+      onOpenDay: (day) async {
+        await openDayFromWidget(day);
+      },
+      // Tapping a note row opens that note in the editor.
+      onOpenNote: (noteId, day) async {
+        await openNoteFromWidget(noteId, day);
+      },
+      // The notes widget's + opens a fresh note.
+      onOpenNotes: () async {
+        if (!mounted) return;
+        await _openNote(null);
+      },
+      // Long-pressing a widget opens the widget settings.
+      onSettings: () async {
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        );
+        if (mounted) _load();
+      },
+    );
+  }
+
+  /// ينفّذ أي أمر ودجت معلّق (فتح مهمة / فتح يوم / مهمة جديدة).
+  Future<void> _drainPending() async {
+    final raw = await WidgetBridge.consumePending();
+    if (raw == null || !mounted) return;
+    await WidgetBridge.runAction(
+      raw,
+      onNewTask: () async {
+        await _load();
+        if (mounted) await _openForm();
+      },
+      onOpenTask: openTaskFromWidget,
+      onOpenDay: openDayFromWidget,
+      onOpenNote: openNoteFromWidget,
+      onOpenNotes: () async {
+        if (mounted) await _openNote(null);
+      },
+      onSettings: () async {
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        );
+      },
+    );
+  }
+
+  // The launcher can queue taps while we are in the background.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      WidgetBridge.applyPending().then((_) {
+        if (mounted) _load();
+      });
+      _drainPending();
+    }
   }
 
   @override
   void dispose() {
-    _memo.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -44,13 +134,74 @@ class _HomeScreenState extends State<HomeScreen> {
     final db = Db.instance;
     final tasks = await db.tasks();
     final done = await db.completionKeys();
-    final notes = await db.notesOn(_selected);
+    // كل الملاحظات (كل الأيام) — التاريخ معلومة على السطر فقط.
+    final allNotes = await db.allNotes();
     if (!mounted) return;
     setState(() {
       _tasks = tasks;
       _done = done;
-      _notes = notes;
+      _notes = _visibleNotes(allNotes);
+      _notesByDay = <String, List<String>>{};
+      for (final n in allNotes) {
+        (_notesByDay[dayKey(n.day)] ??= <String>[]).add(n.text);
+      }
     });
+    // Keep the home-screen widgets in step with every change made here.
+    WidgetBridge.sync();
+  }
+
+  /// كل المهام — من جميع الأيام — مع تجميعها بالمجلد.
+  ///
+  /// الطلب: المهام الجديدة تُجمع كلها مع بعضها بغضّ النظر عن التاريخ،
+  /// والتاريخ يبقى معلومة على السطر نفسه.
+  List<Task> get _allVisible {
+    final list = _tasks.where((t) {
+      if (_group == null) return true;
+      return t.group == _group;
+    }).toList();
+
+    // الترتيب: غير المنجزة أولاً، ثم حسب التاريخ، ثم حسب الوقت.
+    list.sort((a, b) {
+      final ad = a.id == null ? false : _done.contains(doneKey(a.id!, a.date));
+      final bd = b.id == null ? false : _done.contains(doneKey(b.id!, b.date));
+      if (ad != bd) return ad ? 1 : -1;
+      final c = a.date.compareTo(b.date);
+      if (c != 0) return c;
+      final at = a.remindAt, bt = b.remindAt;
+      if (at == null && bt == null) return 0;
+      if (at == null) return 1;
+      if (bt == null) return -1;
+      return at.compareTo(bt);
+    });
+    return _onlyOpen
+        ? list
+            .where((t) =>
+                t.id == null || !_done.contains(doneKey(t.id!, t.date)))
+            .toList()
+        : list;
+  }
+
+  /// الملاحظات المعروضة: كل الأيام مجموعة معاً، وفلترة بالمجلد عند اختياره.
+  List<Note> _visibleNotes(List<Note> all) {
+    final list = all
+        .where((n) => _group == null || n.group == _group)
+        .toList()
+      // المثبّت أولاً ثم الأحدث.
+      ..sort((a, b) {
+        if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
+    return list;
+  }
+
+  /// المجلدات المتاحة للتبديل السريع أعلى الشاشة.
+  List<String> get _groupNames {
+    final set = <String>{};
+    for (final t in _tasks) {
+      if (t.group.trim().isNotEmpty) set.add(t.group);
+    }
+    final list = set.toList()..sort();
+    return list;
   }
 
   List<Task> _tasksOn(DateTime d) =>
@@ -69,13 +220,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _toggle(Task t) async {
-    final nowDone = !_isDone(t, _selected);
+    final day = dateOnly(t.date);
+    final nowDone = !_done.contains(doneKey(t.id!, day));
     HapticFeedback.mediumImpact();
-    await Db.instance.setDone(t.id!, _selected, nowDone);
+    await Db.instance.setDone(t.id!, day, nowDone);
     await Bell.schedule(t, t.id!,
         enabled: appState.notificationsOn, done: nowDone);
     await _load();
   }
+
+  /// «10-05» أو «اليوم» — التاريخ معلومة على سطر المهمة.
+  String _shortDay(DateTime d) => sameDay(d, DateTime.now())
+      ? appState.t('Today', 'اليوم')
+      : '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+          '${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _toggleCheck(Task t, int i) async {
     HapticFeedback.selectionClick();
@@ -93,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF031A08),
+        backgroundColor: kSurface,
         content: Text(msg),
         actions: [
           TextButton(
@@ -103,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(appState.t('Delete', 'حذف'),
-                style: const TextStyle(color: kRed)),
+                style: TextStyle(color: kRed)),
           ),
         ],
       ),
@@ -111,11 +269,16 @@ class _HomeScreenState extends State<HomeScreen> {
     return ok ?? false;
   }
 
-  Future<void> _openForm([Task? t]) async {
+  Future<void> _openForm([Task? t, String? group]) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TaskFormScreen(task: t, initialDate: _selected),
+        builder: (_) => TaskFormScreen(
+          task: t,
+          initialDate: _selected,
+          // A new task created from inside a list lands in that list.
+          group: group ?? (t == null ? _group : null),
+        ),
       ),
     );
     _load();
@@ -151,24 +314,241 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _addMemo() async {
-    final text = _memo.text.trim();
-    if (text.isEmpty) return;
-    await Db.instance.addNote(_selected, text);
-    _memo.clear();
-    _load();
+  /// يفتح محرّر الملاحظات الغني (عنوان، تنسيق، ألوان، نصوص طويلة).
+  Future<void> _openNote(Note? note) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NoteEditorScreen(
+          note: note,
+          day: note?.day ?? _selected,
+          group: note == null ? _group : null,
+        ),
+      ),
+    );
+    if (changed == true) _load();
+  }
+
+  /// يستقبل طلب فتح يوم أو مهمة قادماً من الودجت.
+  Future<void> openDayFromWidget(String dayKeyValue) async {
+    final parts = dayKeyValue.split('-');
+    if (parts.length != 3) return;
+    final d = DateTime(
+      int.tryParse(parts[0]) ?? DateTime.now().year,
+      int.tryParse(parts[1]) ?? DateTime.now().month,
+      int.tryParse(parts[2]) ?? DateTime.now().day,
+    );
+    setState(() {
+      _selected = dateOnly(d);
+      _focused = d;
+    });
+    await _load();
+  }
+
+  /// يفتح ملاحظة معيّنة (أو محرّراً جديداً) قادمة من ودجت الملاحظات.
+  Future<void> openNoteFromWidget(int noteId, String day) async {
+    if (day.isNotEmpty) await openDayFromWidget(day);
+    final all = await Db.instance.allNotes();
+    Note? match;
+    for (final n in all) {
+      if (n.id == noteId) {
+        match = n;
+        break;
+      }
+    }
+    if (!mounted) return;
+    await _openNote(match);
+    if (mounted) await _load();
+  }
+
+  Future<void> openTaskFromWidget(int taskId, String day) async {
+    if (day.isNotEmpty) await openDayFromWidget(day);
+    final all = await Db.instance.tasks();
+    final match = all.where((t) => t.id == taskId).toList();
+    if (match.isEmpty) return;
+    if (!mounted) return;
+    await _openForm(match.first);
+    await _load();
   }
 
   // ---------- UI helpers ----------
+  /// شريط أفقي للمجلدات: «الكل» + كل مجلد، وزر إنشاء مجلد.
+  Widget _listBar(AppState s) {
+    final names = _groupNames;
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(bottom: 4),
+        children: [
+          _groupChip(
+            s.t('All', 'الكل'),
+            selected: _group == null,
+            onTap: () => setState(() => _group = null),
+          ),
+          for (final g in names)
+            _groupChip(
+              g,
+              selected: _group == g,
+              onTap: () => setState(() => _group = g),
+              onLongPress: () => _openForm(null, g),
+            ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 4),
+            child: ActionChip(
+              avatar: Icon(Icons.create_new_folder_outlined,
+                  size: 15, color: kGreen),
+              label: Text(
+                s.t('New list', 'مجلد جديد'),
+                style: TextStyle(color: kMutedGreen, fontSize: 11),
+              ),
+              onPressed: () => _newList(),
+              backgroundColor: Colors.transparent,
+              side: BorderSide(color: kPetrol),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _groupChip(
+    String label, {
+    required bool selected,
+    required VoidCallback onTap,
+    VoidCallback? onLongPress,
+  }) =>
+      Padding(
+        padding: const EdgeInsetsDirectional.only(end: 6),
+        child: GestureDetector(
+          onLongPress: onLongPress,
+          child: ChoiceChip(
+            label: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: selected ? (isLight ? Colors.white : kBlack) : kText,
+              ),
+            ),
+            selected: selected,
+            selectedColor: kGreen,
+            backgroundColor: Colors.transparent,
+            side: BorderSide(color: selected ? kGreen : kPetrol),
+            onSelected: (_) => onTap(),
+          ),
+        ),
+      );
+
+  Future<void> _newList() async {
+    final c = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: Text(appState.t('New list', 'مجلد جديد')),
+        content: BidiField(
+          controller: c,
+          autofocus: true,
+          labelText: appState.t('List name', 'اسم المجلد'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(appState.t('Cancel', 'إلغاء')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, c.text.trim()),
+            child: Text(appState.t('Create', 'إنشاء')),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    // A list is just a folder on tasks; creating it means "start a task there".
+    setState(() => _group = name);
+  }
+
+  /// لوحة المهام: أقسام «غير منجزة» و«منجزة»، وكل مهمة تُظهر تاريخها.
+  Widget _board(AppState s) {
+    final tasks = _allVisible;
+    final open = <Task>[];
+    final finished = <Task>[];
+    for (final t in tasks) {
+      final done = t.id != null && _done.contains(doneKey(t.id!, t.date));
+      (done ? finished : open).add(t);
+    }
+
+    if (tasks.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Text(
+            _group == null
+                ? s.t('No tasks yet — tap + to add one', 'لا مهام بعد — اضغط + لإضافة واحدة')
+                : s.t('Nothing in this list yet', 'لا شيء في هذا المجلد بعد'),
+            style: TextStyle(color: kMuted, fontSize: 12),
+          ),
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildListDelegate([
+        if (open.isNotEmpty) _boardHeader(s, s.t('TO DO', 'للإنجاز'), open.length),
+        for (final t in open) _taskCard(t),
+        if (finished.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () => setState(() => _onlyOpen = false),
+            child: _boardHeader(
+              s,
+              s.t('COMPLETED', 'منجزة'),
+              finished.length,
+            ),
+          ),
+          for (final t in finished) _taskCard(t),
+        ],
+      ]),
+    );
+  }
+
+  Widget _boardHeader(AppState s, String label, int count) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: kMutedGreen,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.3,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text('$count',
+                style: TextStyle(color: kMuted, fontSize: 11)),
+          ],
+        ),
+      );
+
   Widget _section(String s) => Padding(
         padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
-        child: Text(s,
-            style: const TextStyle(
-                color: kGreen,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-                fontSize: 12)),
+        child: Row(
+          children: [
+            Container(width: 3, height: 12, color: kGreen),
+            const SizedBox(width: 7),
+            SectionLabel(s),
+          ],
+        ),
       );
+
+  /// '#RRGGBB' → Color
+  Color _hex(String hex) {
+    final h = hex.replaceFirst('#', '');
+    final v = int.tryParse(h, radix: 16) ?? 0x25F4C8;
+    return Color(0xFF000000 | v);
+  }
 
   Widget _chip(String text, Color c) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -183,7 +563,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _taskCard(Task t) {
     final ar = appState.isArabic;
-    final done = _isDone(t, _selected);
+    // A task is "done" on its own day. The board shows every day at once,
+    // so the standalone day selector must not decide this.
+    final done = t.id != null && _done.contains(doneKey(t.id!, t.date));
     final color = catColor(t.category);
 
     final card = AnimatedOpacity(
@@ -200,11 +582,13 @@ class _HomeScreenState extends State<HomeScreen> {
               Checkbox(
                 value: done,
                 activeColor: kGreen,
-                checkColor: Colors.black,
+                checkColor: isLight ? Colors.white : Colors.black,
                 onChanged: (_) => _toggle(t),
               ),
               Expanded(
-                child: Text(
+                // Each title flows in its own direction so an English word
+                // inside an Arabic sentence is not scrambled.
+                child: BidiText(
                   t.title(ar),
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
@@ -213,21 +597,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               if (t.isPrivate)
-                const Icon(Icons.lock_outline, size: 16, color: kAmber),
+                Icon(Icons.lock_outline, size: 16, color: kAmber),
               if (t.remindAt != null)
                 Padding(
                   padding: const EdgeInsetsDirectional.only(start: 6),
                   child: Row(children: [
-                    const Icon(Icons.notifications_active, size: 16, color: kGreen),
+                    Icon(Icons.notifications_active, size: 16, color: kGreen),
                     const SizedBox(width: 3),
                     Text(DateFormat.Hm().format(t.remindAt!),
-                        style: const TextStyle(color: kGreen, fontSize: 12)),
+                        style: TextStyle(color: kGreen, fontSize: 12)),
                   ]),
                 ),
             ]),
             Padding(
               padding: const EdgeInsetsDirectional.only(start: 12),
               child: Wrap(spacing: 6, runSpacing: 4, children: [
+                // التاريخ معلومة على السطر (الكل مجموع مع بعضه).
+                _chip('▣ ${_shortDay(t.date)}', kMutedGreen),
+                if (t.group.trim().isNotEmpty)
+                  _chip('❏ ${t.group}', kDimGreen),
                 _chip(catLabel(t.category), color),
                 if (t.recurrence != 'none')
                   _chip('↻ ${repeatLabel(t.recurrence)}', kDimGreen),
@@ -238,9 +626,9 @@ class _HomeScreenState extends State<HomeScreen> {
             if (t.details(ar).isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 6, 8, 0),
-                child: Text(t.details(ar),
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 12, height: 1.35)),
+                child: BidiText(t.details(ar),
+                    style: TextStyle(
+                        color: kMuted, fontSize: 12, height: 1.35)),
               ),
             for (var i = 0; i < t.checklist.length; i++)
               InkWell(
@@ -257,7 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(
+                      child: BidiText(
                         t.checklist[i].text,
                         style: TextStyle(
                           fontSize: 12,
@@ -276,7 +664,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     return Dismissible(
-      key: ValueKey('t${t.id}-${dayKey(_selected)}'),
+      key: ValueKey('t${t.id}-${dayKey(t.date)}'),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: AlignmentDirectional.centerEnd,
@@ -293,10 +681,54 @@ class _HomeScreenState extends State<HomeScreen> {
       onDismissed: (_) => _delete(t),
       child: InkWell(
         onTap: () => _openForm(t),
+        onLongPress: () => _taskMenu(t),
         borderRadius: BorderRadius.circular(10),
         child: card,
       ),
     );
+  }
+
+  /// قائمة سريعة: نقل لمجلد آخر أو فتح التعديل.
+  Future<void> _taskMenu(Task t) async {
+    final names = _groupNames;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: kSurface,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              leading: Icon(Icons.edit_outlined, color: kGreen),
+              title: Text(appState.t('Edit task', 'تعديل المهمة')),
+              onTap: () => Navigator.pop(ctx, '__edit'),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              dense: true,
+              leading: Icon(Icons.inbox_outlined, color: kMuted),
+              title: Text(appState.t('No list', 'بدون مجلد')),
+              onTap: () => Navigator.pop(ctx, ''),
+            ),
+            for (final g in names)
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.folder_outlined, color: kAqua),
+                title: Text(g),
+                onTap: () => Navigator.pop(ctx, g),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == '__edit') {
+      await _openForm(t);
+      return;
+    }
+    if (t.id == null) return;
+    await Db.instance.moveTaskToGroup(t.id!, choice);
+    await _load();
   }
 
   @override
@@ -306,159 +738,273 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, _) {
         final s = appState;
         final ar = s.isArabic;
-        final dayTasks = _tasksOn(_selected);
 
         return Scaffold(
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
-            title: const Text('A.JAMI SOS'),
+            title: const Text('T-TRACKER'),
+            // Kept to three controls so the bar stays calm and light.
             actions: [
               IconButton(
-                tooltip: 'Panic',
-                icon: const Icon(Icons.shield_outlined, color: kRed),
-                onPressed: () => s.setPanic(true),
+                tooltip: s.t('Light / dark mode', 'الوضع الفاتح / الداكن'),
+                icon: Icon(
+                  s.lightMode
+                      ? Icons.dark_mode_outlined
+                      : Icons.light_mode_outlined,
+                  color: kGreen,
+                ),
+                onPressed: () {
+                  s.setLightMode(!s.lightMode);
+                  // Widgets are drawn by native code, so tell them to recolour.
+                  WidgetBridge.pushSettings();
+                },
               ),
               IconButton(icon: const Icon(Icons.search), onPressed: _search),
-              TextButton(
-                onPressed: () => s.setArabic(!ar),
-                child: Text(ar ? 'EN' : 'AR',
-                    style: const TextStyle(
-                        color: kGreen, fontWeight: FontWeight.w900)),
-              ),
-              IconButton(
-                icon: const Icon(Icons.tune),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                color: kSurface,
+                onSelected: (v) {
+                  if (v == 'result') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const StatsScreen()),
+                    );
+                  } else if (v == 'panic') {
+                    s.setPanic(true);
+                  } else if (v == 'lang') {
+                    s.setArabic(!ar);
+                  } else if (v == 'settings') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'result',
+                    child: Text(s.t('Results', 'النتائج')),
+                  ),
+                  PopupMenuItem(
+                    value: 'settings',
+                    child: Text(s.t('Settings', 'الإعدادات')),
+                  ),
+                  PopupMenuItem(
+                    value: 'lang',
+                    child: Text(ar ? 'English' : 'العربية'),
+                  ),
+                  PopupMenuItem(
+                    value: 'panic',
+                    child: Text(
+                      s.t('Panic screen', 'شاشة الطوارئ'),
+                      style: TextStyle(color: kRed),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            backgroundColor: kGreen,
-            foregroundColor: Colors.black,
-            onPressed: () => _openForm(),
-            icon: const Icon(Icons.add),
-            label: Text(s.t('NEW TASK', 'مهمة جديدة'),
-                style: const TextStyle(fontWeight: FontWeight.w900)),
+          // Small round + button instead of the wide extended one.
+          floatingActionButton: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: isLight
+                  ? [
+                      BoxShadow(
+                        color: kGreen.withValues(alpha: 0.35),
+                        blurRadius: 14,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : const [
+                      BoxShadow(color: Color(0x8825F4C8), blurRadius: 18),
+                      BoxShadow(color: Color(0x4438BDF8), blurRadius: 30),
+                    ],
+            ),
+            child: FloatingActionButton(
+              mini: true,
+              tooltip: s.t('New task', 'مهمة جديدة'),
+              backgroundColor: kGreen,
+              foregroundColor: isLight ? Colors.white : kBlack,
+              elevation: 0,
+              onPressed: () => _openForm(),
+              child: const Icon(Icons.add, size: 22),
+            ),
           ),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
-            children: [
-              Container(
-                decoration: glass(),
-                padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
-                child: TableCalendar<Task>(
-                  locale: ar ? 'ar' : 'en_US',
-                  firstDay: DateTime(2000),
-                  lastDay: DateTime(2100),
-                  focusedDay: _focused,
-                  startingDayOfWeek: StartingDayOfWeek.sunday,
-                  weekendDays: const [DateTime.friday, DateTime.saturday],
-                  selectedDayPredicate: (d) => sameDay(d, _selected),
-                  eventLoader: _tasksOn,
-                  onDaySelected: (sel, foc) {
-                    setState(() {
-                      _selected = dateOnly(sel);
-                      _focused = foc;
-                    });
-                    _load();
-                  },
-                  onPageChanged: (f) => _focused = f,
-                  onHeaderTapped: (_) => _pickYearMonth(),
-                  headerStyle: const HeaderStyle(
-                    formatButtonVisible: false,
-                    titleCentered: true,
-                    titleTextStyle:
-                        TextStyle(color: kGreen, fontWeight: FontWeight.w800),
-                    leftChevronIcon: Icon(Icons.chevron_left, color: kGreen),
-                    rightChevronIcon: Icon(Icons.chevron_right, color: kGreen),
-                  ),
-                  daysOfWeekStyle: const DaysOfWeekStyle(
-                    weekdayStyle: TextStyle(color: Colors.white54),
-                    weekendStyle: TextStyle(color: kDimGreen),
-                  ),
-                  calendarStyle: CalendarStyle(
-                    outsideDaysVisible: false,
-                    defaultTextStyle: const TextStyle(color: Colors.white70),
-                    weekendTextStyle: TextStyle(color: kDimGreen.withAlpha(170)),
-                    selectedDecoration: BoxDecoration(
-                      color: kGreen.withAlpha(60),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: kGreen),
+          // A CustomScrollView with a builder delegate: header widgets are
+          // fixed, and tasks/notes are built lazily as they scroll into view.
+          body: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate.fixed([
+                    GlassPanel(
+                      padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+                      child: MonthCalendar(
+                        focusedDay: _focused,
+                        selectedDay: _selected,
+                        tasks: _tasks,
+                        doneKeys: _done,
+                        memosByDay: _notesByDay,
+                        onSelect: (sel) {
+                          setState(() {
+                            _selected = dateOnly(sel);
+                            _focused = sel;
+                          });
+                          _load();
+                        },
+                        onMonthChanged: (m) => setState(() => _focused = m),
+                      ),
                     ),
-                    selectedTextStyle: const TextStyle(
-                        color: kGreen, fontWeight: FontWeight.bold),
-                    todayDecoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: kDimGreen),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(
+                        child: Text(
+                          DateFormat.yMMMMEEEEd(ar ? 'ar' : 'en_US')
+                              .format(_selected)
+                              .toUpperCase(),
+                          style: TextStyle(
+                              color: kGreen,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _goToday,
+                        child: Text(s.t('TODAY', 'اليوم')),
+                      ),
+                    ]),
+                    // ---- شريط المجلدات (Lists) ----
+                    _listBar(s),
+                  ]),
+                ),
+              ),
+
+              // ---- المهام: كل الأيام، مجمّعة بالمجلد ----
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                sliver: _board(s),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate.fixed([
+                    _section(
+                      _group == null
+                          ? s.t('NOTES', 'الملاحظات')
+                          : s.t('NOTES IN THIS LIST', 'ملاحظات هذا المجلد'),
                     ),
-                    todayTextStyle: const TextStyle(color: kGreen),
-                    markerDecoration: const BoxDecoration(
-                        color: kGreen, shape: BoxShape.circle),
+                  ]),
+                ),
+              ),
+
+              // ---- Notes (rich, lazy) ----
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) {
+                      final n = _notes[i];
+                      return GestureDetector(
+                        onTap: () => _openNote(n),
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          decoration: glass(
+                            border: n.colorHex == null
+                                ? kDimGreen.withAlpha(90)
+                                : _hex(n.colorHex!).withAlpha(130),
+                          ),
+                          child: ListTile(
+                            dense: true,
+                            leading: n.pinned
+                                ? Icon(Icons.push_pin, size: 15, color: kAmber)
+                                : (n.remindAt != null
+                                    ? Icon(Icons.notifications_active,
+                                        size: 14, color: kAmber)
+                                    : null),
+                            title: BidiText(
+                              n.displayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // التاريخ معلومة فقط — الملاحظات مجموعة معاً.
+                                Text(
+                                  '${_shortDay(n.day)}'
+                                  '${n.group.isEmpty ? '' : '  ·  ${n.group}'}',
+                                  style: TextStyle(
+                                      color: kMutedGreen, fontSize: 9.5),
+                                ),
+                                if (n.text.trim().isNotEmpty)
+                                  BidiText(
+                                    n.text.replaceAll('\n', ' '),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: kMuted, fontSize: 11),
+                                  ),
+                              ],
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () async {
+                                await Db.instance.deleteNote(n.id);
+                                WidgetBridge.sync();
+                                _load();
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: _notes.length,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                  child: Text(
-                    DateFormat.yMMMMEEEEd(ar ? 'ar' : 'en_US')
-                        .format(_selected)
-                        .toUpperCase(),
-                    style: const TextStyle(
+              // ---- Add a note (rich editor) ----
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 100),
+                sliver: SliverToBoxAdapter(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kGreen,
+                            side: BorderSide(color: kPetrol),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          icon: const Icon(Icons.note_add_outlined, size: 18),
+                          label: Text(
+                            s.t('New note', 'ملاحظة جديدة'),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          onPressed: () => _openNote(null),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: s.t('All notes', 'كل الملاحظات'),
+                        icon: const Icon(Icons.list_alt),
                         color: kGreen,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1),
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => NotesScreen(day: _selected),
+                            ),
+                          );
+                          _load();
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                TextButton(
-                  onPressed: _goToday,
-                  child: Text(s.t('TODAY', 'اليوم')),
-                ),
-              ]),
-
-              _section(s.t('TASKS', 'المهام')),
-              if (dayTasks.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(s.t('No tasks for this day', 'لا توجد مهام لهذا اليوم'),
-                      style: const TextStyle(color: Colors.white38)),
-                ),
-              ...dayTasks.map(_taskCard),
-
-              _section(s.t('MEMOS', 'المذكرات')),
-              for (final n in _notes)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  decoration: glass(border: kDimGreen.withAlpha(90)),
-                  child: ListTile(
-                    dense: true,
-                    title: Text(n.text),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () async {
-                        await Db.instance.deleteNote(n.id);
-                        _load();
-                      },
-                    ),
-                  ),
-                ),
-              Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _memo,
-                    onSubmitted: (_) => _addMemo(),
-                    decoration: InputDecoration(
-                      hintText: s.t('Write a memo...', 'اكتب مذكرة...'),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: _addMemo,
-                  icon: const Icon(Icons.send, color: kGreen),
-                ),
-              ]),
+              ),
             ],
           ),
         );

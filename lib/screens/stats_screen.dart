@@ -102,9 +102,18 @@ class _StatsScreenState extends State<StatsScreen> {
           children: [
             Text(
               '$value',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: color,
+                // No bloom in light mode — it smudges thin glyphs.
+                shadows: isLight
+                    ? null
+                    : [Shadow(color: color.withAlpha(150), blurRadius: 14)],
+              ),
             ),
-            Text(label, style: const TextStyle(color: kDimGreen, fontSize: 12)),
+            Text(label,
+                style: TextStyle(color: kMuted, fontSize: 11, letterSpacing: 0.6)),
           ],
         ),
       );
@@ -117,23 +126,32 @@ class _StatsScreenState extends State<StatsScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Text(
-              '$pct%',
-              style: const TextStyle(
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
-                color: kGreen,
+            // Neon bloom halo behind the hero number.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+              decoration: BoxDecoration(gradient: kHaloGradient),
+              child: Text(
+                '$pct%',
+                style: TextStyle(
+                  fontSize: 52,
+                  fontWeight: FontWeight.w800,
+                  color: kGreen,
+                  shadows: kTextBloomStrong,
+                  letterSpacing: -1,
+                ),
               ),
             ),
-            Text(s('Completion rate', 'نسبة الإنجاز'),
-                style: const TextStyle(color: kDimGreen)),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: r.rate,
-              color: kGreen,
-              backgroundColor: kDimGreen.withAlpha(51),
-              minHeight: 6,
+            Text(
+              s('COMPLETION RATE', 'نسبة الإنجاز').toUpperCase(),
+              style: TextStyle(
+                color: kMutedGreen,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.8,
+              ),
             ),
+            const SizedBox(height: 14),
+            GlowBar(value: r.rate, height: 8),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -145,7 +163,7 @@ class _StatsScreenState extends State<StatsScreen> {
             const SizedBox(height: 8),
             Text(
               '${dayKey(span.from)} – ${dayKey(span.to)}',
-              style: const TextStyle(color: kDimGreen, fontSize: 12),
+              style: TextStyle(color: kMuted, fontSize: 12),
             ),
           ],
         ),
@@ -160,7 +178,7 @@ class _StatsScreenState extends State<StatsScreen> {
         child: Text(
           s('No tasks in this period', 'ما في مهام بهالفترة'),
           textAlign: TextAlign.center,
-          style: const TextStyle(color: kDimGreen),
+          style: TextStyle(color: kMuted),
         ),
       );
     }
@@ -185,11 +203,10 @@ class _StatsScreenState extends State<StatsScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  LinearProgressIndicator(
+                  GlowBar(
                     value: e.value[0] == 0 ? 0 : e.value[1] / e.value[0],
                     color: catColor(e.key),
-                    backgroundColor: kDimGreen.withAlpha(51),
-                    minHeight: 4,
+                    height: 4,
                   ),
                 ],
               ),
@@ -208,7 +225,7 @@ class _StatsScreenState extends State<StatsScreen> {
       appBar: AppBar(title: Text(s('Reports', 'التقارير'))),
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: kGreen))
+            ? Center(child: CircularProgressIndicator(color: kGreen))
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [

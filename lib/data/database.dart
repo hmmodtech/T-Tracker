@@ -18,15 +18,19 @@ class Db {
   Future<Database> _open() async {
     const store = FlutterSecureStorage();
     var key = await store.read(key: _keyName);
-    if (key == null) {
+    if (key == null || key.isEmpty) {
       final rnd = Random.secure();
       key = base64Url.encode(List<int>.generate(32, (_) => rnd.nextInt(256)));
-      await store.write(key: _keyName, value: key);
+      try {
+        await store.write(key: _keyName, value: key);
+      } catch (_) {
+        // Keystore unavailable: keep the generated key in memory for this run.
+      }
     }
     return openDatabase(
       p.join(await getDatabasesPath(), 'sos_secure.db'),
       password: key,
-      version: 1,
+      version: 4,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE tasks (
@@ -38,8 +42,10 @@ class Db {
             priority INTEGER NOT NULL DEFAULT 1,
             is_private INTEGER NOT NULL DEFAULT 0,
             recurrence TEXT NOT NULL DEFAULT 'none',
+            until TEXT,
             checklist TEXT,
             is_mission INTEGER NOT NULL DEFAULT 0,
+            grp TEXT NOT NULL DEFAULT '',
             google_id TEXT, ms_id TEXT,
             updated_at TEXT NOT NULL)''');
         await db.execute('''
@@ -49,7 +55,60 @@ class Db {
         await db.execute('''
           CREATE TABLE notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            day TEXT NOT NULL, text TEXT NOT NULL)''');
+            day TEXT NOT NULL,
+            text TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            color TEXT,
+            spans TEXT,
+            pinned INTEGER NOT NULL DEFAULT 0,
+            grp TEXT NOT NULL DEFAULT '',
+            remind_at TEXT,
+            updated_at TEXT)''');
+      },
+      // Migration is column-aware and individually guarded: an `ALTER TABLE`
+      // that fails (or a column that already exists) must never leave the
+      // database half-migrated — that used to hang every screen on its
+      // loading spinner, because the first query never resolved.
+      //
+      // v2: recurring windows (the pre-defined plan ends on a fixed day).
+      // v3: rich notes (title, colour, formatting spans, pin, timestamp).
+      // v4: To-Do groups + note reminders.
+      onUpgrade: (db, from, to) async {
+        Future<void> add(
+          String table,
+          String column,
+          String type, {
+          String? defaultValue,
+        }) async {
+          try {
+            final existing = await db.rawQuery('PRAGMA table_info($table)');
+            final has = existing.any((c) => c['name'] == column);
+            if (has) return;
+            await db.execute(
+              'ALTER TABLE $table ADD COLUMN $column $type'
+              '${defaultValue == null ? '' : ' NOT NULL DEFAULT $defaultValue'}',
+            );
+          } catch (_) {
+            // Never block startup on a single column.
+          }
+        }
+
+        if (from < 2) {
+          await add('tasks', 'until', 'TEXT');
+        }
+        if (from < 3) {
+          await add('notes', 'title', 'TEXT', defaultValue: "''");
+          await add('notes', 'color', 'TEXT');
+          await add('notes', 'spans', 'TEXT');
+          await add('notes', 'pinned', 'INTEGER', defaultValue: '0');
+          await add('notes', 'updated_at', 'TEXT');
+        }
+        if (from < 4) {
+          // To-Do groups for tasks and notes, and a reminder on a note.
+          await add('tasks', 'grp', 'TEXT', defaultValue: "''");
+          await add('notes', 'grp', 'TEXT', defaultValue: "''");
+          await add('notes', 'remind_at', 'TEXT');
+        }
       },
     );
   }
@@ -116,6 +175,51 @@ class Db {
     });
   }
 
+  /// كل أسماء المجلدات المستخدمة فعلاً، مرتّبة.
+  Future<List<String>> taskGroups() async {
+    final db = await _database;
+    final rows = await db.rawQuery(
+      "SELECT grp FROM tasks WHERE grp IS NOT NULL AND grp != '' "
+      'GROUP BY grp ORDER BY grp COLLATE NOCASE',
+    );
+    final noteRows = await db.rawQuery(
+      "SELECT grp FROM notes WHERE grp IS NOT NULL AND grp != '' "
+      'GROUP BY grp ORDER BY grp COLLATE NOCASE',
+    );
+    final all = <String>{};
+    for (final r in rows) {
+      all.add('${r['grp']}');
+    }
+    for (final r in noteRows) {
+      all.add('${r['grp']}');
+    }
+    final list = all.where((g) => g.trim().isNotEmpty).toList()..sort();
+    return list;
+  }
+
+  /// ينقل مهمة إلى مجلد آخر (أو يزيل مجلدها عند '').
+  Future<void> moveTaskToGroup(int id, String group) async {
+    final db = await _database;
+    await db.update(
+      'tasks',
+      {'grp': group, 'updated_at': DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// كل المهام في مجلد معيّن — تُستخدم لشاشة المجلد.
+  Future<List<Task>> tasksInGroup(String group) async {
+    final db = await _database;
+    final rows = await db.query(
+      'tasks',
+      where: 'grp = ?',
+      whereArgs: [group],
+      orderBy: 'date, remind_at',
+    );
+    return rows.map(Task.fromMap).toList();
+  }
+
   // ---------- Completions ----------
   Future<Set<String>> completionKeys() async {
     final db = await _database;
@@ -137,7 +241,7 @@ class Db {
     }
   }
 
-  // ---------- Notes (memos) ----------
+  // ---------- Notes ----------
   Future<List<Note>> notesOn(DateTime day) async {
     final db = await _database;
     final rows = await db.query('notes',
@@ -145,15 +249,41 @@ class Db {
     return rows.map(Note.fromMap).toList();
   }
 
+  /// كل الملاحظات، الأحدث أولاً — الودجت يعرض أحدث ما كتبه المستخدم.
   Future<List<Note>> allNotes() async {
     final db = await _database;
-    final rows = await db.query('notes', orderBy: 'day, id');
+    final rows = await db.query('notes', orderBy: 'day DESC, id DESC');
     return rows.map(Note.fromMap).toList();
   }
 
   Future<void> addNote(DateTime day, String text) async {
     final db = await _database;
-    await db.insert('notes', {'day': dayKey(day), 'text': text});
+    await db.insert('notes', {
+      'day': dayKey(day),
+      'text': text,
+      'title': '',
+      'pinned': 0,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// يحفظ ملاحظة كاملة (مع التنسيقات). يرجع المعرّف.
+  Future<int> saveNote(Note n) async {
+    final db = await _database;
+    final map = n.toMap();
+    if (n.id <= 0) return db.insert('notes', map);
+    await db.update('notes', map, where: 'id = ?', whereArgs: [n.id]);
+    return n.id;
+  }
+
+  Future<void> togglePin(Note n) async {
+    final db = await _database;
+    await db.update(
+      'notes',
+      {'pinned': n.pinned ? 0 : 1},
+      where: 'id = ?',
+      whereArgs: [n.id],
+    );
   }
 
   Future<void> deleteNote(int id) async {
