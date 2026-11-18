@@ -200,6 +200,13 @@ class _NotesScreenState extends State<NotesScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (n.remindAt != null)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 4),
+                      child: Icon(Icons.notifications_active,
+                          size: 13, color: kAmber),
+                    ),
+                  // التاريخ معلومة فقط — الملاحظات كلها مجموعة معاً.
                   Text(
                     DateFormat.MMMd(appState.isArabic ? 'ar' : 'en_US')
                         .format(n.day),
@@ -223,6 +230,19 @@ class _NotesScreenState extends State<NotesScreen> {
                     s('${n.wordCount} words', '${n.wordCount} كلمة'),
                     style: TextStyle(color: kMutedGreen, fontSize: 10),
                   ),
+                  if (n.group.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Icon(Icons.folder_outlined, size: 12, color: kAqua),
+                    const SizedBox(width: 3),
+                    Flexible(
+                      child: BidiText(
+                        n.group,
+                        style: TextStyle(color: kAqua, fontSize: 10),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                   const Spacer(),
                   if (n.spans.isNotEmpty)
                     Icon(Icons.format_size, size: 13, color: kMutedGreen),

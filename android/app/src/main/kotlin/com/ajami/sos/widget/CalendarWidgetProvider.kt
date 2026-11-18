@@ -269,6 +269,9 @@ class CalendarWidgetProvider : AppWidgetProvider() {
                 custom != 0 -> custom
                 else -> palette.green
               }
+              // Same language as the app's month view: filled ● = done,
+              // hollow ○ = still open.
+              cell.setTextViewText(dotId, if (done) "●" else "○")
               cell.setTextColor(dotId, tint)
             } else {
               cell.setViewVisibility(dotId, View.GONE)
