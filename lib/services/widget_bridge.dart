@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show Color;
+import '../core/theme.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -66,7 +68,6 @@ class WidgetBridge {
           await _channel.invokeMethod<void>('clearToggles');
         }
       }
-      applied += await pullWidgetMemos();
     } catch (e) {
       logWidget('apply: $e');
     }
@@ -74,39 +75,12 @@ class WidgetBridge {
     return applied;
   }
 
-  /// يقرأ الميمو المكتوبة من الودجت ويحفظها في قاعدة البيانات.
-  static Future<int> pullWidgetMemos() async {
-    try {
-      final raw = await _channel.invokeMethod<String>('pullMemos');
-      if (raw == null || raw.isEmpty) return 0;
-      final list = jsonDecode(raw);
-      if (list is! List) return 0;
-      var added = 0;
-      for (final item in list) {
-        if (item is! Map) continue;
-        final text = (item['text'] as String?)?.trim() ?? '';
-        final day = (item['day'] as String?) ?? '';
-        if (text.isEmpty) continue;
-        final when = DateTime.tryParse(day) ?? DateTime.now();
-        if (await _alreadySaved(text)) continue;
-        await Db.instance.addNote(when, text);
-        added++;
-      }
-      if (added > 0) {
-        await _channel.invokeMethod<void>('clearMemos');
-        await sync();
-      }
-      return added;
-    } catch (e) {
-      logWidget('pull: $e');
-      return 0;
-    }
-  }
+  /// عنوان المهمة للودجت: المعرفّة مسبقاً بلغتين، ومهمة المستخدم كما كُتبت.
+  static String _titleFor(Task t, bool ar) => t.seeded ? t.title(ar) : t.singleTitle;
 
-  static Future<bool> _alreadySaved(String text) async {
-    final notes = await Db.instance.allNotes();
-    return notes.any((n) => n.text == text);
-  }
+  /// لون رقمي بصيغة #AARRGGBB ليقرأه الودجت مباشرة.
+  static String _hexOf(Color c) =>
+      '#${c.toARGB32().toRadixString(16).padLeft(8, '0')}';
 
   static Future<void> _write() async {
     try {
@@ -148,11 +122,16 @@ class WidgetBridge {
       for (final c in items) {
         if (c.done) complete++;
       }
+      // المهام المعرفّة مسبقاً تأتي بلغتين فتُعرض كما هي.
+      // مهمة المستخدم مكتوبة بلغة واحدة فتُعرض كما كتبها، مع اتجاه النص.
+      final title = t.seeded
+          ? (ar
+              ? (t.titleAr.isNotEmpty ? t.titleAr : t.titleEn)
+              : (t.titleEn.isNotEmpty ? t.titleEn : t.titleAr))
+          : t.singleTitle;
       return {
         'id': id,
-        // The widget title follows the app language, so switching to English
-        // shows the English title of an Arabic-only imported task as well.
-        'title': t.title(ar),
+        'title': title,
         'subtitle': items.isEmpty ? '' : '$complete/${items.length}',
         'done': done.contains(doneKey(id, day)),
         'priority': t.priority,
@@ -200,7 +179,7 @@ class WidgetBridge {
     }
 
     // كل الميمو (وليس ميمو اليوم فقط) حتى تظهر في ودجت الميمو دائماً.
-    final memos = await Db.instance.allNotes();
+    final notes = await Db.instance.allNotes();
 
     // المهام القادمة (خطة D1–D20 وغيرها) حتى تظهر قبل يومها.
     final upcoming = <Task>[];
@@ -212,7 +191,7 @@ class WidgetBridge {
     }
 
     // تقويم الودجت: تفاصيل كل يوم لخمسة أشهر (شهر سابق ← ٣ أشهر قادمة)
-    final memoDays = <String>{for (final n in memos) dayKey(n.day)};
+    final noteDays = <String>{for (final n in notes) dayKey(n.day)};
     final days = <String, Object?>{};
     final firstOfMonth = DateTime(today.year, today.month, 1);
     for (var i = -31; i < 130; i++) {
@@ -222,8 +201,8 @@ class WidgetBridge {
       for (final t in tasks) {
         if (t.occursOn(d)) dayTasks.add(t);
       }
-      final hasMemo = memoDays.contains(key);
-      if (dayTasks.isEmpty && !hasMemo) continue;
+      final hasNote = noteDays.contains(key);
+      if (dayTasks.isEmpty && !hasNote) continue;
       var dDone = 0;
       for (final t in dayTasks) {
         final id = t.id;
@@ -232,13 +211,17 @@ class WidgetBridge {
       days[key] = {
         'n': dayTasks.length,
         'd': dDone,
-        'm': hasMemo ? 1 : 0,
+        'm': hasNote ? 1 : 0,
         't': [
-          for (final t in dayTasks.take(3)) t.title(ar),
+          for (final t in dayTasks.take(3)) _titleFor(t, ar),
         ],
         'done': [
           for (final t in dayTasks.take(3))
             t.id != null && done.contains(doneKey(t.id!, d)),
+        ],
+        // لون نقطة كل مهمة = لون فئتها في التطبيق.
+        'c': [
+          for (final t in dayTasks.take(3)) _hexOf(catColor(t.category)),
         ],
       };
     }
@@ -256,21 +239,20 @@ class WidgetBridge {
       'doneYesterday': doneOn(yesterday),
       'scheduled7': scheduled7,
       'done7': done7,
-      'memos': [
-        for (final n in memos.take(8))
-          {'text': n.text, 'day': dayKey(n.day)},
-      ],
       // ملاحظات غنية (عنوان + مقتطف) لودجت الملاحظات
       'notes': [
-        for (final n in memos.take(60))
+        for (final n in notes.take(60))
           {
             'id': n.id,
             'title': n.displayTitle,
             'preview': n.text.replaceAll('\n', ' '),
             'day': dayKey(n.day),
+            'group': n.group,
             'color': n.colorHex,
             'pinned': n.pinned,
             'spans': n.spans.length,
+            // التاريخ معلومة على السطر، والملاحظات كلها مجموعة معاً.
+            'remind': n.remindAt?.toIso8601String(),
           },
       ],
       // المهام المجدولة القادمة (تُعرض في ودجت المهام تحت مهام اليوم)
@@ -393,10 +375,9 @@ class WidgetBridge {
     }
   }
 
-  /// يستمع لأوامر الودجت: فتح نموذج مهمة جديدة، أو سحب الميمو المكتوبة.
+  /// يستمع لأوامر الودجت: فتح نموذج مهمة جديدة، أو فتح يوم/مهمة/ملاحظة.
   static void listen({
     required Future<void> Function() onNewTask,
-    required Future<void> Function() onMemos,
     Future<void> Function()? onSettings,
     Future<void> Function(int taskId, String day)? onOpenTask,
     Future<void> Function(String day)? onOpenDay,
@@ -414,7 +395,6 @@ class WidgetBridge {
           final day = parts.length > 2 ? parts[2] : '';
 
           if (action == 'new_task') await onNewTask();
-          if (action == 'pull_memos') await onMemos();
           if (action == 'widget_settings' && onSettings != null) {
             await onSettings();
           }

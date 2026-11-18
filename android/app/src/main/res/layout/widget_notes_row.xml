@@ -34,6 +34,16 @@
             android:ellipsize="end" />
 
         <TextView
+            android:id="@+id/note_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/widget_muted_green"
+            android:textSize="9sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
+
+        <TextView
             android:id="@+id/note_preview"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

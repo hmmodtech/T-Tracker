@@ -24,7 +24,6 @@ object WidgetData {
   private const val SNAPSHOT = "sos_widget.json"
 
   /** Queue keys, also read by Dart. */
-  const val KEY_NOTES = "flutter.sos_widget_notes"
   const val KEY_TOGGLES = "flutter.sos_widget_toggles"
 
   // ---------- models ----------
@@ -41,8 +40,6 @@ object WidgetData {
     val isMission: Boolean = false,
   )
 
-  data class Memo(val text: String, val day: String)
-
   /** One entry of the notes widget: title + preview + colour. */
   data class NoteEntry(
     val id: Int,
@@ -51,6 +48,7 @@ object WidgetData {
     val day: String,
     val color: String?,
     val pinned: Boolean,
+    val group: String = "",
   )
 
   /** One calendar cell: how many tasks, how many done, whether a memo exists. */
@@ -61,6 +59,8 @@ object WidgetData {
     val hasMemo: Boolean,
     val titles: List<String> = emptyList(),
     val doneFlags: List<Boolean> = emptyList(),
+    /** Per-task colour (ARGB), matching the app's category colour. */
+    val colors: List<Int> = emptyList(),
   )
 
   data class Snapshot(
@@ -72,7 +72,6 @@ object WidgetData {
     val scheduledYesterday: Int = 0,
     val done7: Int = 0,
     val scheduled7: Int = 0,
-    val memos: List<Memo> = emptyList(),
     val notes: List<NoteEntry> = emptyList(),
     val upcoming: List<Task> = emptyList(),
     val days: Map<String, Day> = emptyMap(),
@@ -104,6 +103,18 @@ object WidgetData {
     } catch (_: Throwable) {
       // A malformed snapshot must never leave the widget blank forever.
       Snapshot()
+    }
+  }
+
+  /** '#AARRGGBB' or '#RRGGBB' → ARGB int. 0 when unparseable. */
+  fun parseColor(raw: String?): Int {
+    if (raw.isNullOrBlank()) return 0
+    val hex = raw.removePrefix("#")
+    return try {
+      val v = hex.toLong(16)
+      if (hex.length <= 6) (0xFF000000L or v).toInt() else v.toInt()
+    } catch (_: Throwable) {
+      0
     }
   }
 
@@ -150,16 +161,6 @@ object WidgetData {
       }
     }
 
-    val memos = (o.optJSONArray("memos") ?: JSONArray()).let { arr ->
-      (0 until arr.length()).mapNotNull { i ->
-        try {
-          val m = arr.optJSONObject(i) ?: return@mapNotNull null
-          Memo(m.optString("text"), m.optString("day"))
-        } catch (_: Throwable) {
-          null
-        }
-      }
-    }
     val daysObj = o.optJSONObject("days")
     val days = LinkedHashMap<String, Day>()
     if (daysObj != null) {
@@ -175,6 +176,13 @@ object WidgetData {
             flags += dArr?.optBoolean(i) ?: false
           }
         }
+        val colors = mutableListOf<Int>()
+        val cArr = d.optJSONArray("c")
+        if (cArr != null) {
+          for (i in 0 until cArr.length()) {
+            colors += parseColor(cArr.optString(i))
+          }
+        }
         days[key] = Day(
           key = key,
           total = d.optInt("n"),
@@ -182,6 +190,7 @@ object WidgetData {
           hasMemo = d.optInt("m") == 1,
           titles = titles,
           doneFlags = flags,
+          colors = colors,
         )
       }
     }
@@ -199,6 +208,7 @@ object WidgetData {
           day = n.optString("day"),
           color = n.optString("color").takeIf { it.isNotEmpty() && it != "null" },
           pinned = n.optBoolean("pinned"),
+          group = n.optString("group"),
         )
       }
     }
@@ -217,7 +227,6 @@ object WidgetData {
       scheduledYesterday = o.optInt("scheduledYesterday"),
       done7 = o.optInt("done7"),
       scheduled7 = o.optInt("scheduled7"),
-      memos = memos,
       notes = notes,
       generatedAt = o.optLong("generatedAt", modified),
       hasAppData = true,
@@ -290,39 +299,6 @@ object WidgetData {
     } catch (_: Throwable) {
       // A broken cache must never break the widget.
     }
-  }
-
-  /** Memos typed in the widget sheet, newest first. */
-  fun localMemos(context: Context): List<Memo> {
-    val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-      .getString(KEY_NOTES, null) ?: return emptyList()
-    return try {
-      val arr = JSONArray(raw)
-      (0 until arr.length()).mapNotNull { i ->
-        val o = arr.optJSONObject(i) ?: return@mapNotNull null
-        Memo(o.optString("text"), o.optString("day"))
-      }
-    } catch (_: Throwable) {
-      emptyList()
-    }
-  }
-
-  fun saveLocalMemo(context: Context, text: String) {
-    val clean = text.trim()
-    if (clean.isEmpty()) return
-    val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    val arr = JSONArray()
-    arr.put(JSONObject().put("text", clean).put("day", dayKey(0)))
-    // Keep the last 20 queued memos.
-    for (m in localMemos(context).take(19)) {
-      arr.put(JSONObject().put("text", m.text).put("day", m.day))
-    }
-    prefs.edit().putString(KEY_NOTES, arr.toString()).apply()
-  }
-
-  fun clearLocalMemos(context: Context) {
-    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-      .edit().remove(KEY_NOTES).apply()
   }
 
   // ---------- helpers ----------

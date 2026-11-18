@@ -106,6 +106,38 @@ class Bell {
     }
   }
 
+  /// تنبيه لملاحظة. معرّف الإشعار في نطاق مختلف عن المهام حتى لا يتصادما.
+  static Future<void> scheduleNote(Note n, {required bool enabled}) async {
+    try {
+      final id = noteBellId(n.id);
+      await cancel(id);
+      final remind = n.remindAt;
+      if (!enabled || remind == null) return;
+      if (remind.isBefore(DateTime.now())) return;
+      await init();
+      if (!_ready) return;
+      final body = n.text.trim();
+      await _plugin.zonedSchedule(
+        id,
+        n.displayTitle.isEmpty
+            ? appState.t('Note reminder', 'تذكير ملاحظة')
+            : n.displayTitle,
+        body.length > 160 ? '${body.substring(0, 160)}…' : body,
+        tz.TZDateTime.from(remind, tz.local),
+        _details,
+        androidScheduleMode: _mode,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'note:${n.id}',
+      );
+    } catch (e) {
+      logBoot('Bell.scheduleNote(${n.id}): $e');
+    }
+  }
+
+  /// معرّف إشعار ملاحظة — خارج نطاق معرّفات المهام (التي تبدأ صغيرة).
+  static int noteBellId(int noteId) => 700000000 + noteId;
+
   static Future<void> cancel(int id) async {
     try {
       await _plugin.cancel(id);
@@ -164,6 +196,9 @@ class Bell {
       final tasks = await Db.instance.tasks();
       final doneKeys = await Db.instance.completionKeys();
       final on = appState.notificationsOn;
+      for (final n in await Db.instance.allNotes()) {
+        await scheduleNote(n, enabled: on);
+      }
       for (final t in tasks) {
         final id = t.id;
         if (id == null) continue;

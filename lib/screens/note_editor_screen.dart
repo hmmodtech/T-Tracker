@@ -5,6 +5,7 @@ import '../core/backdrop.dart';
 import '../core/bidi.dart';
 import '../core/theme.dart';
 import '../data/database.dart';
+import '../services/notifications.dart';
 import '../data/models.dart';
 import '../services/widget_bridge.dart';
 
@@ -17,7 +18,15 @@ class NoteEditorScreen extends StatefulWidget {
   final Note? note;
   final DateTime day;
 
-  const NoteEditorScreen({super.key, this.note, required this.day});
+  /// المجلد المقترح عند إنشاء ملاحظة من داخل مجلد.
+  final String? group;
+
+  const NoteEditorScreen({
+    super.key,
+    this.note,
+    required this.day,
+    this.group,
+  });
 
   @override
   State<NoteEditorScreen> createState() => _NoteEditorScreenState();
@@ -30,6 +39,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   late DateTime _day;
   String? _color;
+  late String _group;
+  DateTime? _remindAt;
 
   // التنسيق الحالي (يُطبّق على التحديد أو على ما يُكتب بعده)
   bool _bold = false;
@@ -71,6 +82,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     );
     _day = n?.day ?? widget.day;
     _color = n?.colorHex;
+    _group = n?.group ?? widget.group ?? '';
+    _remindAt = n?.remindAt;
     _recount();
 
     _title.addListener(_onChanged);
@@ -152,9 +165,29 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         colorHex: _color,
         spans: _spans,
         pinned: widget.note?.pinned ?? false,
+        group: _group,
+        remindAt: _remindAt,
         updatedAt: DateTime.now(),
       );
-      await Db.instance.saveNote(note);
+      final id = await Db.instance.saveNote(note);
+      // جدولة/إلغاء منبّه الملاحظة بنفس محرّك تذكيرات التطبيق.
+      // نستخدم المعرّف الحقيقي حتى تُلغى التذكيرات القديمة بنفس الرقم.
+      await Bell.scheduleNote(
+        note.id == 0
+            ? Note(
+                id: id,
+                day: note.day,
+                text: note.text,
+                title: note.title,
+                colorHex: note.colorHex,
+                spans: note.spans,
+                pinned: note.pinned,
+                group: note.group,
+                remindAt: note.remindAt,
+              )
+            : note,
+        enabled: appState.notificationsOn,
+      );
       WidgetBridge.sync();
       if (!mounted) return;
       setState(() {
@@ -275,8 +308,42 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   Widget _metaRow() => Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-        child: Row(
+        // شريط أفقي: التاريخ + المجلد + المنبّه + ألوان الملاحظة.
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
           children: [
+            ActionChip(
+              avatar: Icon(Icons.folder_outlined, size: 15, color: kAqua),
+              label: Text(
+                _group.isEmpty ? s('No list', 'بدون مجلد') : _group,
+                style: TextStyle(fontSize: 12, color: kText),
+              ),
+              backgroundColor: kSurface.withAlpha(160),
+              side: BorderSide(color: kPetrol),
+              onPressed: _pickGroup,
+            ),
+            const SizedBox(width: 8),
+            ActionChip(
+              avatar: Icon(
+                _remindAt == null
+                    ? Icons.notifications_none
+                    : Icons.notifications_active,
+                size: 15,
+                color: _remindAt == null ? kGreen : kAmber,
+              ),
+              label: Text(
+                _remindAt == null
+                    ? s('Remind', 'منبّه')
+                    : '${_remindAt!.hour.toString().padLeft(2, '0')}:'
+                        '${_remindAt!.minute.toString().padLeft(2, '0')}',
+                style: TextStyle(fontSize: 12, color: kText),
+              ),
+              backgroundColor: kSurface.withAlpha(160),
+              side: BorderSide(color: kPetrol),
+              onPressed: _pickReminder,
+            ),
+            const SizedBox(width: 8),
             ActionChip(
               avatar: Icon(Icons.calendar_today, size: 15, color: kGreen),
               label: Text(
@@ -308,8 +375,93 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 ),
               ),
           ],
+          ),
         ),
       );
+
+  /// اختيار المجلد (نفس مجلدات المهام).
+  Future<void> _pickGroup() async {
+    final groups = await Db.instance.taskGroups();
+    if (!mounted) return;
+    final c = TextEditingController(text: _group);
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: Text(s('List (group)', 'المجلد')),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              BidiField(
+                controller: c,
+                labelText: s('New list name', 'اسم مجلد جديد'),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    ListTile(
+                      dense: true,
+                      leading: Icon(Icons.inbox_outlined, color: kGreen),
+                      title: Text(s('No list', 'بدون مجلد')),
+                      onTap: () => Navigator.pop(ctx, ''),
+                    ),
+                    for (final g in groups)
+                      ListTile(
+                        dense: true,
+                        leading: Icon(Icons.folder_outlined, color: kAqua),
+                        title: Text(g),
+                        onTap: () => Navigator.pop(ctx, g),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(s('Cancel', 'إلغاء')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, c.text.trim()),
+            child: Text(s('Use', 'استخدام')),
+          ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    setState(() {
+      _group = picked;
+      _dirty = true;
+    });
+  }
+
+  /// منبّه الملاحظة: يفتح التطبيق نفسه عند الوقت المحدّد.
+  Future<void> _pickReminder() async {
+    final base = _remindAt ??
+        DateTime(_day.year, _day.month, _day.day, 9);
+    final date = await showDatePicker(
+      context: context,
+      initialDate: base.isBefore(DateTime.now()) ? DateTime.now() : base,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (date == null || !mounted) return;
+    final tm = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(base),
+    );
+    if (tm == null) return;
+    setState(() {
+      _remindAt = DateTime(date.year, date.month, date.day, tm.hour, tm.minute);
+      _dirty = true;
+    });
+  }
 
   Widget _toolbar() => Container(
         margin: const EdgeInsets.fromLTRB(10, 8, 10, 4),

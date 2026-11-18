@@ -45,10 +45,8 @@ object WidgetActions {
 
   private val steps: List<(Context) -> Unit> = listOf(
     { ctx -> notifyList(ctx, TasksWidgetProvider::class.java) },
-    { ctx -> notifyList(ctx, MemoWidgetProvider::class.java) },
     { ctx -> notifyList(ctx, NotesWidgetProvider::class.java) },
     { ctx -> TasksWidgetProvider.refresh(ctx) },
-    { ctx -> MemoWidgetProvider.refresh(ctx) },
     { ctx -> ResultWidgetProvider.refresh(ctx) },
     { ctx -> CalendarWidgetProvider.refresh(ctx) },
     { ctx -> NotesWidgetProvider.refresh(ctx) },
@@ -59,7 +57,6 @@ object WidgetActions {
     val manager = AppWidgetManager.getInstance(context)
     return listOf(
       TasksWidgetProvider::class.java,
-      MemoWidgetProvider::class.java,
       ResultWidgetProvider::class.java,
       CalendarWidgetProvider::class.java,
       NotesWidgetProvider::class.java,

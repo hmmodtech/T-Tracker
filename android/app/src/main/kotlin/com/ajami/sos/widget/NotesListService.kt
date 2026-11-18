@@ -72,6 +72,30 @@ class NotesListFactory(private val context: Context) :
       if (WidgetStrings.isRtl(note.title)) 3 else 2,
     )
 
+    // التاريخ معلومة على السطر، مع المجلد إن وُجد.
+    val meta = buildString {
+      if (note.day.isNotEmpty()) append(note.day)
+      if (note.group.isNotEmpty()) {
+        if (isNotEmpty()) append("  ·  ")
+        append(note.group)
+      }
+    }
+    if (meta.isNotEmpty()) {
+      res.setViewVisibility(R.id.note_meta, View.VISIBLE)
+      res.setTextViewText(R.id.note_meta, meta)
+      res.setTextViewTextSize(
+        R.id.note_meta, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(9f, scale),
+      )
+      res.setTextColor(R.id.note_meta, palette.mutedGreen)
+      res.setInt(
+        R.id.note_meta,
+        "setTextDirection",
+        if (WidgetStrings.isRtl(meta)) 3 else 2,
+      )
+    } else {
+      res.setViewVisibility(R.id.note_meta, View.GONE)
+    }
+
     if (note.preview.isNotEmpty() && note.title.isNotEmpty()) {
       res.setViewVisibility(R.id.note_preview, View.VISIBLE)
       res.setTextViewText(R.id.note_preview, note.preview)

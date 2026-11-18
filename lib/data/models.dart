@@ -4,6 +4,10 @@ import 'dart:convert';
 const kCategories = ['general', 'security', 'logistics', 'child', 'admin'];
 const kRepeats = ['none', 'daily', 'weekly', 'monthly'];
 
+/// الفئة الخاصة بكل مهمة/نوت (مثل مجلدات To-Do في مايكروسوفت).
+/// القيمة الفارغة تعني «بدون فئة».
+const kNoGroup = '';
+
 String dayKey(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-'
     '${d.month.toString().padLeft(2, '0')}-'
@@ -68,6 +72,8 @@ class Task {
   final DateTime? until;    // آخر يوم للتكرار (شامل) — null = بلا نهاية
   final List<CheckItem> checklist;
   final bool isMission;     // جزء من خطة D1–D20
+  /// مجلد/فئة المهمة (To-Do groups). فارغ = بدون فئة.
+  final String group;
   final String? googleId;
   final String? msId;
   final DateTime updatedAt;
@@ -87,10 +93,24 @@ class Task {
     this.until,
     this.checklist = const [],
     this.isMission = false,
+    this.group = '',
     this.googleId,
     this.msId,
     required this.updatedAt,
   });
+
+  /// هل هذه المهمة من الخطة المعرفّة مسبقاً (D1–D20)؟
+  ///
+  /// المهام المعرفّة مسبقاً تُعرض بلغتين، لأنها تأتي من النظام لا من
+  /// المستخدم. أي مهمة يضيفها المستخدم تُكتب بلغة واحدة كما كتبها.
+  bool get seeded => isMission;
+
+  /// نص الإدخال الموحّد: حقل واحد فقط للمستخدم.
+  ///
+  /// المهام الجديدة تُخزَّن في [titleAr] لأنها نصوص حرّة قد تكون عربية أو
+  /// إنجليزية أو مختلطة، والعرض يتبع اتجاه النص لا اللغة المختارة.
+  String get singleTitle =>
+      titleAr.trim().isNotEmpty ? titleAr.trim() : titleEn.trim();
 
   /// عنوان المهمة حسب لغة العرض.
   ///
@@ -134,6 +154,45 @@ class Task {
     };
   }
 
+  Task copyWith({
+    String? titleEn,
+    String? titleAr,
+    String? detailsEn,
+    String? detailsAr,
+    DateTime? date,
+    DateTime? remindAt,
+    bool clearRemindAt = false,
+    String? category,
+    int? priority,
+    bool? isPrivate,
+    String? recurrence,
+    DateTime? until,
+    List<CheckItem>? checklist,
+    bool? isMission,
+    String? group,
+    DateTime? updatedAt,
+  }) =>
+      Task(
+        id: id,
+        titleEn: titleEn ?? this.titleEn,
+        titleAr: titleAr ?? this.titleAr,
+        detailsEn: detailsEn ?? this.detailsEn,
+        detailsAr: detailsAr ?? this.detailsAr,
+        date: date ?? this.date,
+        remindAt: clearRemindAt ? null : (remindAt ?? this.remindAt),
+        category: category ?? this.category,
+        priority: priority ?? this.priority,
+        isPrivate: isPrivate ?? this.isPrivate,
+        recurrence: recurrence ?? this.recurrence,
+        until: until ?? this.until,
+        checklist: checklist ?? this.checklist,
+        isMission: isMission ?? this.isMission,
+        group: group ?? this.group,
+        googleId: googleId,
+        msId: msId,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+
   Map<String, Object?> toMap() => {
         'title_en': titleEn,
         'title_ar': titleAr,
@@ -148,6 +207,7 @@ class Task {
         'until': until == null ? null : dayKey(until!),
         'checklist': jsonEncode(checklist.map((c) => c.toJson()).toList()),
         'is_mission': isMission ? 1 : 0,
+        'grp': group,
         'google_id': googleId,
         'ms_id': msId,
         'updated_at': updatedAt.toIso8601String(),
@@ -168,6 +228,7 @@ class Task {
         until: m['until'] == null ? null : _date(m['until']),
         checklist: _parseChecklist(m['checklist'] as String?),
         isMission: _int(m['is_mission']) == 1,
+        group: _text(m['grp']),
         googleId: m['google_id'] as String?,
         msId: m['ms_id'] as String?,
         updatedAt: m['updated_at'] == null
@@ -249,6 +310,12 @@ class Note {
   final bool pinned;
   final DateTime updatedAt;
 
+  /// مجلد الملاحظة (نفس مجموعات المهام). فارغ = بدون مجلد.
+  final String group;
+
+  /// تنبيه اختياري للملاحظة — يُجدول في نفس محرّك تذكيرات التطبيق.
+  final DateTime? remindAt;
+
   Note({
     required this.id,
     required this.day,
@@ -257,6 +324,8 @@ class Note {
     this.colorHex,
     this.spans = const [],
     this.pinned = false,
+    this.group = '',
+    this.remindAt,
     DateTime? updatedAt,
   }) : updatedAt = updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -281,6 +350,8 @@ class Note {
         colorHex: m['color'] as String?,
         spans: _parseSpans(m['spans'] as String?),
         pinned: _int(m['pinned']) == 1,
+        group: _text(m['grp']),
+        remindAt: m['remind_at'] == null ? null : _date(m['remind_at']),
         updatedAt: m['updated_at'] == null
             ? DateTime.fromMillisecondsSinceEpoch(0)
             : _date(m['updated_at']),
@@ -293,6 +364,8 @@ class Note {
         'color': colorHex,
         'spans': jsonEncode(spans.map((s) => s.toJson()).toList()),
         'pinned': pinned ? 1 : 0,
+        'grp': group,
+        'remind_at': remindAt?.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
 
@@ -303,6 +376,9 @@ class Note {
     List<NoteSpan>? spans,
     bool? pinned,
     DateTime? day,
+    String? group,
+    DateTime? remindAt,
+    bool clearRemind = false,
   }) =>
       Note(
         id: id,
@@ -312,6 +388,8 @@ class Note {
         colorHex: colorHex ?? this.colorHex,
         spans: spans ?? this.spans,
         pinned: pinned ?? this.pinned,
+        group: group ?? this.group,
+        remindAt: clearRemind ? null : (remindAt ?? this.remindAt),
         updatedAt: DateTime.now(),
       );
 }

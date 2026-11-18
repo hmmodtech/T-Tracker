@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_list_label">T-Tracker — المهام</string>
-    <string name="widget_memo_label">T-Tracker — ميمو سريع</string>
+    <string name="widget_memo_label">T-Tracker — ملاحظة سريعة</string>
     <string name="widget_result_label">T-Tracker — النتيجة</string>
     <string name="widget_list_desc">مهام اليوم مع مربعات الإنجاز</string>
-    <string name="widget_memo_desc">اكتب ميمو سريع من الشاشة الرئيسية</string>
+    <string name="widget_memo_desc">اكتب ملاحظة سريعة من الشاشة الرئيسية</string>
     <string name="widget_result_desc">نتيجة الإنجاز: اليوم، أمس، وهذا الأسبوع</string>
     <string name="widget_add">إضافة</string>
     <string name="widget_refresh">تحديث</string>
     <string name="widget_empty">لا توجد مهام اليوم</string>
-    <string name="widget_memo_hint">ميمو سريع…</string>
-    <string name="widget_memo_empty">اضغط لكتابة ميمو</string>
+    <string name="widget_memo_hint">اكتب ملاحظة…</string>
+    <string name="widget_memo_empty">اضغط لكتابة ملاحظة</string>
     <string name="widget_today">اليوم</string>
     <string name="widget_yesterday">أمس</string>
     <string name="widget_week">٧ أيام</string>

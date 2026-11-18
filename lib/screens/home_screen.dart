@@ -32,10 +32,16 @@ class _HomeScreenState extends State<HomeScreen>
   DateTime _selected = dateOnly(DateTime.now());
   List<Task> _tasks = [];
   Set<String> _done = {};
+
+  /// المجلد/القائمة المعروضة حالياً. null = «كل المهام».
+  String? _group;
+
+  /// عرض المهام التي لم تُنجز فقط (مثل تبويب «المهام» في To-Do).
+  bool _onlyOpen = false;
   List<Note> _notes = [];
 
-  /// yyyy-MM-dd → نصوص الميمو، لعرض نقطة الميمو في التقويم.
-  Map<String, List<String>> _memosByDay = {};
+  /// yyyy-MM-dd → نصوص الملاحظات، لعرض نقطة الملاحظة في التقويم.
+  Map<String, List<String>> _notesByDay = {};
 
   @override
   void initState() {
@@ -45,16 +51,12 @@ class _HomeScreenState extends State<HomeScreen>
     // A widget tap can arrive before the app finished starting; pick it up
     // once the first frame is on screen.
     WidgetsBinding.instance.addPostFrameCallback((_) => _drainPending());
-    // Widget taps: the + button opens the new-task form, and memo taps pull
-    // whatever was typed on the home screen into the database.
+    // Widget taps: + opens the new-task form, a row opens its task,
+    // a calendar day opens that day, and a note opens the editor.
     WidgetBridge.listen(
       onNewTask: () async {
         _load();
         if (mounted) await _openForm();
-      },
-      onMemos: () async {
-        await WidgetBridge.applyPending();
-        if (mounted) await _load();
       },
       // Tapping a task row opens that task's page.
       onOpenTask: (taskId, day) async {
@@ -139,13 +141,54 @@ class _HomeScreenState extends State<HomeScreen>
       _tasks = tasks;
       _done = done;
       _notes = notes;
-      _memosByDay = <String, List<String>>{};
+      _notesByDay = <String, List<String>>{};
       for (final n in allNotes) {
-        (_memosByDay[dayKey(n.day)] ??= <String>[]).add(n.text);
+        (_notesByDay[dayKey(n.day)] ??= <String>[]).add(n.text);
       }
     });
     // Keep the home-screen widgets in step with every change made here.
     WidgetBridge.sync();
+  }
+
+  /// كل المهام — من جميع الأيام — مع تجميعها بالمجلد.
+  ///
+  /// الطلب: المهام الجديدة تُجمع كلها مع بعضها بغضّ النظر عن التاريخ،
+  /// والتاريخ يبقى معلومة على السطر نفسه.
+  List<Task> get _allVisible {
+    final list = _tasks.where((t) {
+      if (_group == null) return true;
+      return t.group == _group;
+    }).toList();
+
+    // الترتيب: غير المنجزة أولاً، ثم حسب التاريخ، ثم حسب الوقت.
+    list.sort((a, b) {
+      final ad = a.id == null ? false : _done.contains(doneKey(a.id!, a.date));
+      final bd = b.id == null ? false : _done.contains(doneKey(b.id!, b.date));
+      if (ad != bd) return ad ? 1 : -1;
+      final c = a.date.compareTo(b.date);
+      if (c != 0) return c;
+      final at = a.remindAt, bt = b.remindAt;
+      if (at == null && bt == null) return 0;
+      if (at == null) return 1;
+      if (bt == null) return -1;
+      return at.compareTo(bt);
+    });
+    return _onlyOpen
+        ? list
+            .where((t) =>
+                t.id == null || !_done.contains(doneKey(t.id!, t.date)))
+            .toList()
+        : list;
+  }
+
+  /// المجلدات المتاحة للتبديل السريع أعلى الشاشة.
+  List<String> get _groupNames {
+    final set = <String>{};
+    for (final t in _tasks) {
+      if (t.group.trim().isNotEmpty) set.add(t.group);
+    }
+    final list = set.toList()..sort();
+    return list;
   }
 
   List<Task> _tasksOn(DateTime d) =>
@@ -164,13 +207,20 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _toggle(Task t) async {
-    final nowDone = !_isDone(t, _selected);
+    final day = dateOnly(t.date);
+    final nowDone = !_done.contains(doneKey(t.id!, day));
     HapticFeedback.mediumImpact();
-    await Db.instance.setDone(t.id!, _selected, nowDone);
+    await Db.instance.setDone(t.id!, day, nowDone);
     await Bell.schedule(t, t.id!,
         enabled: appState.notificationsOn, done: nowDone);
     await _load();
   }
+
+  /// «10-05» أو «اليوم» — التاريخ معلومة على سطر المهمة.
+  String _shortDay(DateTime d) => sameDay(d, DateTime.now())
+      ? appState.t('Today', 'اليوم')
+      : '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+          '${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _toggleCheck(Task t, int i) async {
     HapticFeedback.selectionClick();
@@ -206,11 +256,16 @@ class _HomeScreenState extends State<HomeScreen>
     return ok ?? false;
   }
 
-  Future<void> _openForm([Task? t]) async {
+  Future<void> _openForm([Task? t, String? group]) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => TaskFormScreen(task: t, initialDate: _selected),
+        builder: (_) => TaskFormScreen(
+          task: t,
+          initialDate: _selected,
+          // A new task created from inside a list lands in that list.
+          group: group ?? (t == null ? _group : null),
+        ),
       ),
     );
     _load();
@@ -251,7 +306,11 @@ class _HomeScreenState extends State<HomeScreen>
     final changed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => NoteEditorScreen(note: note, day: _selected),
+        builder: (_) => NoteEditorScreen(
+          note: note,
+          day: note?.day ?? _selected,
+          group: note == null ? _group : null,
+        ),
       ),
     );
     if (changed == true) _load();
@@ -300,6 +359,166 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ---------- UI helpers ----------
+  /// شريط أفقي للمجلدات: «الكل» + كل مجلد، وزر إنشاء مجلد.
+  Widget _listBar(AppState s) {
+    final names = _groupNames;
+    return SizedBox(
+      height: 38,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(bottom: 4),
+        children: [
+          _groupChip(
+            s.t('All', 'الكل'),
+            selected: _group == null,
+            onTap: () => setState(() => _group = null),
+          ),
+          for (final g in names)
+            _groupChip(
+              g,
+              selected: _group == g,
+              onTap: () => setState(() => _group = g),
+              onLongPress: () => _openForm(group: g),
+            ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 4),
+            child: ActionChip(
+              avatar: Icon(Icons.create_new_folder_outlined,
+                  size: 15, color: kGreen),
+              label: Text(
+                s.t('New list', 'مجلد جديد'),
+                style: TextStyle(color: kMutedGreen, fontSize: 11),
+              ),
+              onPressed: () => _newList(),
+              backgroundColor: Colors.transparent,
+              side: BorderSide(color: kPetrol),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _groupChip(
+    String label, {
+    required bool selected,
+    required VoidCallback onTap,
+    VoidCallback? onLongPress,
+  }) =>
+      Padding(
+        padding: const EdgeInsetsDirectional.only(end: 6),
+        child: GestureDetector(
+          onLongPress: onLongPress,
+          child: ChoiceChip(
+            label: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: selected ? (isLight ? Colors.white : kBlack) : kText,
+              ),
+            ),
+            selected: selected,
+            selectedColor: kGreen,
+            backgroundColor: Colors.transparent,
+            side: BorderSide(color: selected ? kGreen : kPetrol),
+            onSelected: (_) => onTap(),
+          ),
+        ),
+      );
+
+  Future<void> _newList() async {
+    final c = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: Text(appState.t('New list', 'مجلد جديد')),
+        content: BidiField(
+          controller: c,
+          autofocus: true,
+          labelText: appState.t('List name', 'اسم المجلد'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(appState.t('Cancel', 'إلغاء')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, c.text.trim()),
+            child: Text(appState.t('Create', 'إنشاء')),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    // A list is just a folder on tasks; creating it means "start a task there".
+    setState(() => _group = name);
+  }
+
+  /// لوحة المهام: أقسام «غير منجزة» و«منجزة»، وكل مهمة تُظهر تاريخها.
+  Widget _board(AppState s) {
+    final tasks = _allVisible;
+    final open = <Task>[];
+    final finished = <Task>[];
+    for (final t in tasks) {
+      final done = t.id != null && _done.contains(doneKey(t.id!, t.date));
+      (done ? finished : open).add(t);
+    }
+
+    if (tasks.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Text(
+            _group == null
+                ? s.t('No tasks yet — tap + to add one', 'لا مهام بعد — اضغط + لإضافة واحدة')
+                : s.t('Nothing in this list yet', 'لا شيء في هذا المجلد بعد'),
+            style: TextStyle(color: kMuted, fontSize: 12),
+          ),
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildListDelegate([
+        if (open.isNotEmpty) _boardHeader(s, s.t('TO DO', 'للإنجاز'), open.length),
+        for (final t in open) _taskCard(t),
+        if (finished.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () => setState(() => _onlyOpen = false),
+            child: _boardHeader(
+              s,
+              s.t('COMPLETED', 'منجزة'),
+              finished.length,
+            ),
+          ),
+          for (final t in finished) _taskCard(t),
+        ],
+      ]),
+    );
+  }
+
+  Widget _boardHeader(AppState s, String label, int count) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: kMutedGreen,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.3,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text('$count',
+                style: TextStyle(color: kMuted, fontSize: 11)),
+          ],
+        ),
+      );
+
   Widget _section(String s) => Padding(
         padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
         child: Row(
@@ -331,7 +550,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _taskCard(Task t) {
     final ar = appState.isArabic;
-    final done = _isDone(t, _selected);
+    // A task is "done" on its own day. The board shows every day at once,
+    // so the standalone day selector must not decide this.
+    final done = t.id != null && _done.contains(doneKey(t.id!, t.date));
     final color = catColor(t.category);
 
     final card = AnimatedOpacity(
@@ -378,6 +599,10 @@ class _HomeScreenState extends State<HomeScreen>
             Padding(
               padding: const EdgeInsetsDirectional.only(start: 12),
               child: Wrap(spacing: 6, runSpacing: 4, children: [
+                // التاريخ معلومة على السطر (الكل مجموع مع بعضه).
+                _chip('▣ ${_shortDay(t.date)}', kMutedGreen),
+                if (t.group.trim().isNotEmpty)
+                  _chip('❏ ${t.group}', kDimGreen),
                 _chip(catLabel(t.category), color),
                 if (t.recurrence != 'none')
                   _chip('↻ ${repeatLabel(t.recurrence)}', kDimGreen),
@@ -426,7 +651,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     return Dismissible(
-      key: ValueKey('t${t.id}-${dayKey(_selected)}'),
+      key: ValueKey('t${t.id}-${dayKey(t.date)}'),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: AlignmentDirectional.centerEnd,
@@ -443,10 +668,54 @@ class _HomeScreenState extends State<HomeScreen>
       onDismissed: (_) => _delete(t),
       child: InkWell(
         onTap: () => _openForm(t),
+        onLongPress: () => _taskMenu(t),
         borderRadius: BorderRadius.circular(10),
         child: card,
       ),
     );
+  }
+
+  /// قائمة سريعة: نقل لمجلد آخر أو فتح التعديل.
+  Future<void> _taskMenu(Task t) async {
+    final names = _groupNames;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: kSurface,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              leading: Icon(Icons.edit_outlined, color: kGreen),
+              title: Text(appState.t('Edit task', 'تعديل المهمة')),
+              onTap: () => Navigator.pop(ctx, '__edit'),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              dense: true,
+              leading: Icon(Icons.inbox_outlined, color: kMuted),
+              title: Text(appState.t('No list', 'بدون مجلد')),
+              onTap: () => Navigator.pop(ctx, ''),
+            ),
+            for (final g in names)
+              ListTile(
+                dense: true,
+                leading: Icon(Icons.folder_outlined, color: kAqua),
+                title: Text(g),
+                onTap: () => Navigator.pop(ctx, g),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == '__edit') {
+      await _openForm(t);
+      return;
+    }
+    if (t.id == null) return;
+    await Db.instance.moveTaskToGroup(t.id!, choice);
+    await _load();
   }
 
   @override
@@ -456,7 +725,6 @@ class _HomeScreenState extends State<HomeScreen>
       builder: (context, _) {
         final s = appState;
         final ar = s.isArabic;
-        final dayTasks = _tasksOn(_selected);
 
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -551,7 +819,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           // A CustomScrollView with a builder delegate: header widgets are
-          // fixed, and tasks/memos are built lazily as they scroll into view.
+          // fixed, and tasks/notes are built lazily as they scroll into view.
           body: CustomScrollView(
             slivers: [
               SliverPadding(
@@ -565,7 +833,7 @@ class _HomeScreenState extends State<HomeScreen>
                         selectedDay: _selected,
                         tasks: _tasks,
                         doneKeys: _done,
-                        memosByDay: _memosByDay,
+                        memosByDay: _notesByDay,
                         onSelect: (sel) {
                           setState(() {
                             _selected = dateOnly(sel);
@@ -594,38 +862,26 @@ class _HomeScreenState extends State<HomeScreen>
                         child: Text(s.t('TODAY', 'اليوم')),
                       ),
                     ]),
-                    _section(s.t('TASKS', 'المهام')),
+                    // ---- شريط المجلدات (Lists) ----
+                    _listBar(s),
                   ]),
                 ),
               ),
 
-              // ---- Tasks (lazy) ----
-              if (dayTasks.isEmpty)
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                  sliver: SliverToBoxAdapter(
-                    child: Text(
-                      s.t('No tasks for this day', 'لا توجد مهام لهذا اليوم'),
-                      style: TextStyle(color: kMuted),
-                    ),
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) => _taskCard(dayTasks[i]),
-                      childCount: dayTasks.length,
-                    ),
-                  ),
-                ),
-
+              // ---- المهام: كل الأيام، مجمّعة بالمجلد ----
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                sliver: _board(s),
+              ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate.fixed([
-                    _section(s.t('MEMOS', 'المذكرات')),
+                    _section(
+                      _group == null
+                          ? s.t('NOTES', 'الملاحظات')
+                          : s.t('NOTES IN THIS LIST', 'ملاحظات هذا المجلد'),
+                    ),
                   ]),
                 ),
               ),

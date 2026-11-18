@@ -253,14 +253,23 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             },
           )
 
-          // Task dots: one per task, up to three, dimmed when done.
+          // Task dots: one per task, up to three.
+          // Each dot takes the colour of its task's category exactly as the
+          // app paints it, and greys out once that task is done — so the
+          // widget and the in-app month view read the same.
           val total = day?.total ?: 0
           val dots = intArrayOf(R.id.cell_dot1, R.id.cell_dot2, R.id.cell_dot3)
           for ((i, dotId) in dots.withIndex()) {
             if (i < total) {
               cell.setViewVisibility(dotId, View.VISIBLE)
               val done = day?.doneFlags?.getOrNull(i) ?: false
-              cell.setTextColor(dotId, if (done) palette.muted else palette.green)
+              val custom = day?.colors?.getOrNull(i) ?: 0
+              val tint = when {
+                done -> palette.muted
+                custom != 0 -> custom
+                else -> palette.green
+              }
+              cell.setTextColor(dotId, tint)
             } else {
               cell.setViewVisibility(dotId, View.GONE)
             }

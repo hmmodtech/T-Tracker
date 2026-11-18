@@ -93,7 +93,7 @@ class _SearchScreenState extends State<SearchScreen> {
       out.add(_Hit(
         day: day,
         title: firstLine.length > 60 ? '${firstLine.substring(0, 60)}…' : firstLine,
-        subtitle: '${dayKey(day)} · ${s('Memo', 'ملاحظة')}',
+        subtitle: '${dayKey(day)} · ${s('Note', 'ملاحظة')}',
         icon: Icons.sticky_note_2_outlined,
         color: kGreen,
       ));
@@ -116,7 +116,7 @@ class _SearchScreenState extends State<SearchScreen> {
           autofocus: true,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: s('Search tasks and memos…', 'ابحث في المهام والملاحظات…'),
+            hintText: s('Search tasks and notes…', 'ابحث في المهام والملاحظات…'),
             border: InputBorder.none,
           ),
           onChanged: (v) => setState(() => _query = v),

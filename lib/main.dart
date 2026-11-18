@@ -134,7 +134,7 @@ class _BootGateState extends State<BootGate> {
       // Re-scheduling bells is the heaviest and most failure-prone step, so it
       // runs last and never blocks the UI.
       unawaited(_step('reminders', Bell.resyncAll));
-      // Move memos typed on the home-screen widget into the database, then
+      // Drain any queued widget action, then
       // publish a fresh snapshot for the widgets.
       unawaited(_step('widgets', () async {
         await WidgetBridge.applyPending();

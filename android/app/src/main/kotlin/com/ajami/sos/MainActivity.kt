@@ -45,21 +45,7 @@ class MainActivity : FlutterFragmentActivity() {
                     WidgetActions.refreshAll(this)
                     result.success(null)
                 }
-                // Memos typed in the widget, waiting to be stored in the DB.
-                "pullMemos" -> {
-                    val memos = WidgetData.localMemos(this)
-                    val json = org.json.JSONArray().apply {
-                        for (m in memos) {
-                            put(org.json.JSONObject().put("text", m.text).put("day", m.day))
-                        }
-                    }
-                    result.success(json.toString())
-                }
-                "clearMemos" -> {
-                    WidgetData.clearLocalMemos(this)
-                    WidgetActions.refreshAll(this)
-                    result.success(null)
-                }
+
                 // Checkbox taps queued from the tasks widget.
                 "pullToggles" -> {
                     val arr = org.json.JSONArray()

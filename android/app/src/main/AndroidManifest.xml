@@ -44,16 +44,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Fast memo sheet opened from the memo widget -->
-        <activity
-            android:name=".widget.QuickMemoActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:theme="@style/WidgetSheetTheme"
-            android:windowSoftInputMode="adjustResize|stateVisible" />
-
-        <!-- ============ Home-screen widgets ============ -->
         <receiver
             android:name=".widget.TasksWidgetProvider"
             android:exported="false"
@@ -78,16 +68,6 @@
             </intent-filter>
         </service>
 
-        <!-- Backs the scrollable notes list in the memo widget -->
-        <service
-            android:name=".widget.NotesWidgetService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS">
-            <intent-filter>
-                <action android:name="android.widget.RemoteViewsService" />
-            </intent-filter>
-        </service>
-
         <!-- Backs the scrollable list in the dedicated notes widget -->
         <service
             android:name=".widget.NotesListService"
@@ -97,21 +77,6 @@
                 <action android:name="android.widget.RemoteViewsService" />
             </intent-filter>
         </service>
-
-        <receiver
-            android:name=".widget.MemoWidgetProvider"
-            android:exported="false"
-            android:label="@string/widget_memo_label">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.ajami.sos.widget.ADD_MEMO" />
-                <action android:name="com.ajami.sos.widget.REFRESH" />
-                <action android:name="com.ajami.sos.widget.SETTINGS" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_memo_info" />
-        </receiver>
 
         <receiver
             android:name=".widget.NotesWidgetProvider"

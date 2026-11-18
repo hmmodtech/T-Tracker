@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_list_label">T-Tracker — Tasks</string>
-    <string name="widget_memo_label">T-Tracker — Quick memo</string>
+    <string name="widget_memo_label">T-Tracker — Notes</string>
     <string name="widget_result_label">T-Tracker — Result</string>
     <string name="widget_list_desc">Today\'s task list with checkboxes</string>
-    <string name="widget_memo_desc">Write a quick memo straight from the home screen</string>
+    <string name="widget_memo_desc">A quick note straight from the home screen</string>
     <string name="widget_result_desc">Completion result: today, yesterday and this week</string>
     <string name="widget_add">Add</string>
     <string name="widget_refresh">Refresh</string>
     <string name="widget_empty">No tasks today</string>
-    <string name="widget_memo_hint">Quick memo…</string>
-    <string name="widget_memo_empty">Tap to write a memo</string>
+    <string name="widget_memo_hint">Write a note…</string>
+    <string name="widget_memo_empty">Tap to write a note</string>
     <string name="widget_today">Today</string>
     <string name="widget_yesterday">Yesterday</string>
     <string name="widget_week">7 days</string>

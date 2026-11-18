@@ -63,7 +63,7 @@ class _NotesScreenState extends State<NotesScreen> {
       MaterialPageRoute(
         builder: (_) => NoteEditorScreen(
           note: note,
-          day: widget.day ?? dateOnly(DateTime.now()),
+          day: note?.day ?? widget.day ?? dateOnly(DateTime.now()),
         ),
       ),
     );
