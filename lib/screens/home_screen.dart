@@ -378,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen>
               g,
               selected: _group == g,
               onTap: () => setState(() => _group = g),
-              onLongPress: () => _openForm(group: g),
+              onLongPress: () => _openForm(null, g),
             ),
           Padding(
             padding: const EdgeInsetsDirectional.only(start: 4),
