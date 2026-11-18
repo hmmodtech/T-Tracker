@@ -5,6 +5,7 @@ import android.os.Bundle
 import com.ajami.sos.widget.WidgetActions
 import com.ajami.sos.widget.WidgetData
 import com.ajami.sos.widget.WidgetKeys
+import com.ajami.sos.widget.WidgetLog
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
