@@ -134,13 +134,13 @@ class _HomeScreenState extends State<HomeScreen>
     final db = Db.instance;
     final tasks = await db.tasks();
     final done = await db.completionKeys();
-    final notes = await db.notesOn(_selected);
+    // كل الملاحظات (كل الأيام) — التاريخ معلومة على السطر فقط.
     final allNotes = await db.allNotes();
     if (!mounted) return;
     setState(() {
       _tasks = tasks;
       _done = done;
-      _notes = notes;
+      _notes = _visibleNotes(allNotes);
       _notesByDay = <String, List<String>>{};
       for (final n in allNotes) {
         (_notesByDay[dayKey(n.day)] ??= <String>[]).add(n.text);
@@ -179,6 +179,19 @@ class _HomeScreenState extends State<HomeScreen>
                 t.id == null || !_done.contains(doneKey(t.id!, t.date)))
             .toList()
         : list;
+  }
+
+  /// الملاحظات المعروضة: كل الأيام مجموعة معاً، وفلترة بالمجلد عند اختياره.
+  List<Note> _visibleNotes(List<Note> all) {
+    final list = all
+        .where((n) => _group == null || n.group == _group)
+        .toList()
+      // المثبّت أولاً ثم الأحدث.
+      ..sort((a, b) {
+        if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
+    return list;
   }
 
   /// المجلدات المتاحة للتبديل السريع أعلى الشاشة.
@@ -906,21 +919,35 @@ class _HomeScreenState extends State<HomeScreen>
                             dense: true,
                             leading: n.pinned
                                 ? Icon(Icons.push_pin, size: 15, color: kAmber)
-                                : null,
+                                : (n.remindAt != null
+                                    ? Icon(Icons.notifications_active,
+                                        size: 14, color: kAmber)
+                                    : null),
                             title: BidiText(
                               n.displayTitle,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontWeight: FontWeight.w600),
                             ),
-                            subtitle: n.text.trim().isEmpty
-                                ? null
-                                : BidiText(
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // التاريخ معلومة فقط — الملاحظات مجموعة معاً.
+                                Text(
+                                  '${_shortDay(n.day)}'
+                                  '${n.group.isEmpty ? '' : '  ·  ${n.group}'}',
+                                  style: TextStyle(
+                                      color: kMutedGreen, fontSize: 9.5),
+                                ),
+                                if (n.text.trim().isNotEmpty)
+                                  BidiText(
                                     n.text.replaceAll('\n', ' '),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(color: kMuted, fontSize: 11),
                                   ),
+                              ],
+                            ),
                             trailing: IconButton(
                               icon: const Icon(Icons.close, size: 18),
                               onPressed: () async {
