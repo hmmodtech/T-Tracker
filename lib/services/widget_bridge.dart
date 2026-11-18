@@ -109,8 +109,21 @@ class WidgetBridge {
   }
 
   static Future<void> _write() async {
+    try {
+      await _writeInner();
+    } catch (e) {
+      logWidget('write: $e');
+    }
+  }
+
+  static Future<void> _writeInner() async {
     final dir = await _snapshotDir();
     if (dir == null) return;
+    if (!await dir.exists()) {
+      try {
+        await dir.create(recursive: true);
+      } catch (_) {}
+    }
 
     final tasks = await Db.instance.tasks();
     final done = await Db.instance.completionKeys();
@@ -281,8 +294,20 @@ class WidgetBridge {
       },
     };
 
+    // نكتب إلى ملف مؤقت ثم نستبدل — كتابة نصفية كانت تترك JSON تالفاً،
+    // وحينها يفشل parseSnapshot وترجع لقطة فارغة، فتظهر الودجت فارغة.
     final file = File('${dir.path}/$_fileName');
-    await file.writeAsString(jsonEncode(data), flush: true);
+    final tmp = File('${dir.path}/$_fileName.tmp');
+    await tmp.writeAsString(jsonEncode(data), flush: true);
+    try {
+      await tmp.rename(file.path);
+    } catch (_) {
+      // بعض الأنظمة لا تسمح بالاستبدال الذرّي؛ نكتب مباشرة كخطة بديلة.
+      await file.writeAsString(jsonEncode(data), flush: true);
+      try {
+        await tmp.delete();
+      } catch (_) {}
+    }
   }
 
   /// نفس المجلد الذي يقرأه WidgetData.kt:

@@ -3,6 +3,7 @@ package com.ajami.sos.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import com.ajami.sos.R
 
 /**
  * Widget actions are queued instead of written straight to the encrypted
@@ -19,34 +20,39 @@ object WidgetActions {
     refreshAll(context)
   }
 
-  /** Updates every widget from the current snapshot. */
+  /**
+   * Updates every widget from the current snapshot.
+   *
+   * Each widget is refreshed in its own `try`: a provider that throws (a
+   * launcher refusing a binder, a malformed row) used to abort the whole
+   * chain, which left later widgets stuck on "Loading".
+   */
   fun refreshAll(context: Context) {
-    // ListView-backed widgets need an explicit dataset-changed signal,
-    // otherwise the adapter keeps the rows it already built.
-    try {
-      val manager = AppWidgetManager.getInstance(context)
-      val ids = manager.getAppWidgetIds(
-        ComponentName(context, TasksWidgetProvider::class.java),
-      )
-      for (id in ids) manager.notifyAppWidgetViewDataChanged(id, com.ajami.sos.R.id.w_list)
-    } catch (_: Throwable) {
-      // ignore
+    for (step in steps) {
+      try {
+        step(context)
+      } catch (_: Throwable) {
+        // Never let one widget break the others.
+      }
     }
-    try {
-      val manager = AppWidgetManager.getInstance(context)
-      val ids = manager.getAppWidgetIds(
-        ComponentName(context, MemoWidgetProvider::class.java),
-      )
-      for (id in ids) manager.notifyAppWidgetViewDataChanged(id, com.ajami.sos.R.id.w_list)
-    } catch (_: Throwable) {
-      // ignore
-    }
-    TasksWidgetProvider.refresh(context)
-    MemoWidgetProvider.refresh(context)
-    ResultWidgetProvider.refresh(context)
-    CalendarWidgetProvider.refresh(context)
-    NotesWidgetProvider.refresh(context)
   }
+
+  private fun notifyList(context: Context, provider: Class<*>) {
+    val manager = AppWidgetManager.getInstance(context)
+    val ids = manager.getAppWidgetIds(ComponentName(context, provider))
+    for (id in ids) manager.notifyAppWidgetViewDataChanged(id, R.id.w_list)
+  }
+
+  private val steps: List<(Context) -> Unit> = listOf(
+    { ctx -> notifyList(ctx, TasksWidgetProvider::class.java) },
+    { ctx -> notifyList(ctx, MemoWidgetProvider::class.java) },
+    { ctx -> notifyList(ctx, NotesWidgetProvider::class.java) },
+    { ctx -> TasksWidgetProvider.refresh(ctx) },
+    { ctx -> MemoWidgetProvider.refresh(ctx) },
+    { ctx -> ResultWidgetProvider.refresh(ctx) },
+    { ctx -> CalendarWidgetProvider.refresh(ctx) },
+    { ctx -> NotesWidgetProvider.refresh(ctx) },
+  )
 
   /** True when at least one widget of any kind is on the home screen. */
   fun hasWidgets(context: Context): Boolean {

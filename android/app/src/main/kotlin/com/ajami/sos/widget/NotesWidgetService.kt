@@ -44,8 +44,17 @@ class NotesFactory(private val context: Context) : RemoteViewsService.RemoteView
 
   override fun getCount(): Int = items.size
 
-  override fun getViewAt(position: Int): RemoteViews? {
-    val memo = items.getOrNull(position) ?: return null
+  override fun getViewAt(position: Int): RemoteViews {
+    return try {
+      buildRow(position)
+    } catch (_: Throwable) {
+      RemoteViews(context.packageName, R.layout.widget_memo_row)
+    }
+  }
+
+  private fun buildRow(position: Int): RemoteViews {
+    val memo = items.getOrNull(position)
+      ?: return RemoteViews(context.packageName, R.layout.widget_memo_row)
     val res = RemoteViews(context.packageName, R.layout.widget_memo_row)
 
     res.setTextViewText(R.id.row_title, memo.text)

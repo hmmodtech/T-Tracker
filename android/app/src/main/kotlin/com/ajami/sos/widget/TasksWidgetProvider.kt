@@ -29,6 +29,10 @@ class TasksWidgetProvider : AppWidgetProvider() {
   ) {
     val views = build(context)
     for (id in ids) manager.updateAppWidget(id, views)
+    // The ListView backbone is bound asynchronously; asking for a data change
+    // straight after the layout is applied is what makes the rows appear
+    // instead of the launcher's "Loading" placeholder.
+    notifyLists(context, manager, ids)
   }
 
   override fun onReceive(context: Context, intent: Intent) {
@@ -87,7 +91,21 @@ class TasksWidgetProvider : AppWidgetProvider() {
       )
       if (ids.isEmpty()) return
       val views = build(context)
-      for (id in ids) manager.updateAppWidget(id, views)
+      manager.updateAppWidget(ids, views)
+      notifyLists(context, manager, ids)
+    }
+
+    /** Rebuilds every row from the (fresh) snapshot. */
+    private fun notifyLists(
+      context: Context,
+      manager: AppWidgetManager,
+      ids: IntArray,
+    ) {
+      try {
+        for (id in ids) manager.notifyAppWidgetViewDataChanged(id, R.id.w_list)
+      } catch (_: Throwable) {
+        // A launcher that refuses the refresh must not take the app down.
+      }
     }
 
     fun build(context: Context): RemoteViews {

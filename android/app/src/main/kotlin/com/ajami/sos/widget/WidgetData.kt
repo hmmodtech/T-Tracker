@@ -94,12 +94,26 @@ object WidgetData {
   fun load(context: Context): Snapshot {
     val file = snapshotFile(context) ?: return Snapshot()
     if (!file.exists() || file.length() < 2) return Snapshot()
-    return try {
-      parseSnapshot(JSONObject(file.readText()), file.lastModified())
+    val text = try {
+      file.readText()
     } catch (_: Throwable) {
+      return Snapshot()
+    }
+    return try {
+      parseSnapshot(JSONObject(text), file.lastModified())
+    } catch (_: Throwable) {
+      // A malformed snapshot must never leave the widget blank forever.
       Snapshot()
     }
   }
+
+  /** Timestamp of the last snapshot the app wrote, 0 when there is none. */
+  fun lastWrite(context: Context): Long =
+    try {
+      snapshotFile(context)?.takeIf { it.exists() }?.lastModified() ?: 0L
+    } catch (_: Throwable) {
+      0L
+    }
 
   private fun snapshotFile(context: Context): File? {
     val ext = context.getExternalFilesDir(null)
@@ -114,24 +128,36 @@ object WidgetData {
     fun tasks(key: String): List<Task> {
       val arr = o.optJSONArray(key) ?: return emptyList()
       return (0 until arr.length()).mapNotNull { i ->
-        val t = arr.optJSONObject(i) ?: return@mapNotNull null
-        Task(
-          id = t.optInt("id"),
-          title = t.optString("title"),
-          subtitle = t.optString("subtitle"),
-          done = t.optBoolean("done"),
-          priority = t.optInt("priority"),
-          isPrivate = t.optBoolean("private"),
-          time = t.optString("time").takeIf { it.isNotEmpty() },
-          day = t.optString("day"),
-          isMission = t.optBoolean("isMission"),
-        )
+        try {
+          taskOf(arr.optJSONObject(i))
+        } catch (_: Throwable) {
+          null
+        }
       }
+    }
+
+    fun taskOf(t: JSONObject?): Task? {
+      if (t == null) return null
+      return Task(
+        id = t.optInt("id"),
+        title = t.optString("title"),
+        subtitle = t.optString("subtitle"),
+        done = t.optBoolean("done"),
+        priority = t.optInt("priority"),
+        isPrivate = t.optBoolean("private"),
+        time = t.optString("time").takeIf { it.isNotEmpty() },
+        day = t.optString("day"),
+        isMission = t.optBoolean("isMission"),
+      )
     }
     val memos = (o.optJSONArray("memos") ?: JSONArray()).let { arr ->
       (0 until arr.length()).mapNotNull { i ->
-        val m = arr.optJSONObject(i) ?: return@mapNotNull null
-        Memo(m.optString("text"), m.optString("day"))
+        try {
+          val m = arr.optJSONObject(i) ?: return@mapNotNull null
+          Memo(m.optString("text"), m.optString("day"))
+        } catch (_: Throwable) {
+          null
+        }
       }
     }
     val daysObj = o.optJSONObject("days")

@@ -39,6 +39,16 @@ class TasksFactory(private val context: Context) : RemoteViewsService.RemoteView
   override fun onCreate() = Unit
 
   override fun onDataSetChanged() {
+    // Any throw here leaves the widget stuck on "Loading" forever, so the
+    // whole load is contained: a bad snapshot degrades to an empty list.
+    rows = try {
+      loadRows()
+    } catch (_: Throwable) {
+      emptyList()
+    }
+  }
+
+  private fun loadRows(): List<Row> {
     val data = WidgetData.load(context)
     palette = WidgetStyle.palette(data)
     scale = WidgetStyle.scale(data)
@@ -56,7 +66,7 @@ class TasksFactory(private val context: Context) : RemoteViewsService.RemoteView
         list += Row(it, day, false)
       }
     }
-    rows = list
+    return list
   }
 
   override fun onDestroy() {
@@ -65,8 +75,28 @@ class TasksFactory(private val context: Context) : RemoteViewsService.RemoteView
 
   override fun getCount(): Int = rows.size
 
-  override fun getViewAt(position: Int): RemoteViews? {
-    val row = rows.getOrNull(position) ?: return null
+  override fun getViewAt(position: Int): RemoteViews {
+    // A throwing row makes the launcher show "Loading" for the whole list,
+    // so every row is built defensively and always returns something.
+    return try {
+      buildRow(position)
+    } catch (_: Throwable) {
+      fallbackRow()
+    }
+  }
+
+  /** Bare but valid row, used when a real row could not be built. */
+  private fun fallbackRow(): RemoteViews {
+    val res = RemoteViews(context.packageName, R.layout.widget_tasks_row)
+    res.setTextViewText(R.id.row_title, "")
+    res.setViewVisibility(R.id.row_sub, View.GONE)
+    res.setViewVisibility(R.id.row_strike, View.GONE)
+    res.setViewVisibility(R.id.row_tag, View.GONE)
+    return res
+  }
+
+  private fun buildRow(position: Int): RemoteViews {
+    val row = rows.getOrNull(position) ?: return fallbackRow()
     val task = row.task
     val res = RemoteViews(context.packageName, R.layout.widget_tasks_row)
 

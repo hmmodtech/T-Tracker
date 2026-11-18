@@ -25,10 +25,15 @@ class NotesListFactory(private val context: Context) :
   override fun onCreate() = Unit
 
   override fun onDataSetChanged() {
-    val data = WidgetData.load(context)
-    palette = WidgetStyle.palette(data)
-    scale = WidgetStyle.scale(data)
-    items = data.notes
+    // Contained: a throw here would leave the widget on "Loading" for good.
+    items = try {
+      val data = WidgetData.load(context)
+      palette = WidgetStyle.palette(data)
+      scale = WidgetStyle.scale(data)
+      data.notes
+    } catch (_: Throwable) {
+      emptyList()
+    }
   }
 
   override fun onDestroy() {
@@ -37,8 +42,23 @@ class NotesListFactory(private val context: Context) :
 
   override fun getCount(): Int = items.size
 
-  override fun getViewAt(position: Int): RemoteViews? {
-    val note = items.getOrNull(position) ?: return null
+  override fun getViewAt(position: Int): RemoteViews {
+    return try {
+      buildRow(position)
+    } catch (_: Throwable) {
+      emptyRow()
+    }
+  }
+
+  private fun emptyRow(): RemoteViews {
+    val res = RemoteViews(context.packageName, R.layout.widget_notes_row)
+    res.setTextViewText(R.id.note_title, "")
+    res.setViewVisibility(R.id.note_preview, View.GONE)
+    return res
+  }
+
+  private fun buildRow(position: Int): RemoteViews {
+    val note = items.getOrNull(position) ?: return emptyRow()
     val res = RemoteViews(context.packageName, R.layout.widget_notes_row)
 
     res.setTextViewText(R.id.note_title, note.title.ifEmpty { note.preview.take(60) })

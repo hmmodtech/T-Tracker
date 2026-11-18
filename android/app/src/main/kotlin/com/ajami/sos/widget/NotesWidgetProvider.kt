@@ -24,6 +24,13 @@ class NotesWidgetProvider : AppWidgetProvider() {
   override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
     val views = build(context)
     for (id in ids) manager.updateAppWidget(id, views)
+    for (id in ids) {
+      try {
+        manager.notifyAppWidgetViewDataChanged(id, R.id.w_list)
+      } catch (_: Throwable) {
+        // ignore
+      }
+    }
   }
 
   companion object {
