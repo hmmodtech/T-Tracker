@@ -1,6 +1,8 @@
 package com.ajami.sos.widget
 
 import android.content.Context
+import android.view.Gravity
+import android.widget.RemoteViews
 import android.content.res.Configuration
 import com.ajami.sos.R
 import java.util.Locale
@@ -45,6 +47,18 @@ object WidgetStrings {
       }
     }
     return hasRtl
+  }
+
+  /**
+   * محاذاة النص داخل صف الودجت حسب لغته.
+   *
+   * `setGravity` مسموحة في RemoteViews، بخلاف `setTextDirection` التي
+   * تُفشل تطبيق الصف كاملاً فيعرض الـ launcher «Loading» مكانه.
+   */
+  fun align(views: RemoteViews, viewId: Int, text: String) {
+    val gravity = if (isRtl(text)) Gravity.RIGHT or Gravity.CENTER_VERTICAL
+    else Gravity.LEFT or Gravity.CENTER_VERTICAL
+    views.setInt(viewId, "setGravity", gravity)
   }
 
   fun doneOf(context: Context): String =

@@ -80,7 +80,8 @@ class TasksFactory(private val context: Context) : RemoteViewsService.RemoteView
     // so every row is built defensively and always returns something.
     return try {
       buildRow(position)
-    } catch (_: Throwable) {
+    } catch (e: Throwable) {
+      WidgetLog.report(context, "task row $position", e)
       fallbackRow()
     }
   }
@@ -101,15 +102,12 @@ class TasksFactory(private val context: Context) : RemoteViewsService.RemoteView
     val res = RemoteViews(context.packageName, R.layout.widget_tasks_row)
 
     res.setTextViewText(R.id.row_title, task.title)
-    // Arabic (or mixed) titles read right-to-left even on an English phone,
-    // which is what stops English words inside them from being scrambled.
-    // 3 = TEXT_DIRECTION_RTL, 2 = TEXT_DIRECTION_LTR. Setting it explicitly
-    // both ways matters because rows are recycled between recycling bounds.
-    res.setInt(
-      R.id.row_title,
-      "setTextDirection",
-      if (WidgetStrings.isRtl(task.title)) 3 else 2,
-    )
+    // `setTextDirection` is NOT on the RemoteViews allow-list. The launcher
+    // threw while applying each row and fell back to "Loading...", which made
+    // the whole list look empty even though the header showed real counts.
+    // Direction is now applied with `setGravity`, which is allowed, and the
+    // Unicode bidi algorithm keeps mixed lines in order.
+    WidgetStrings.align(res, R.id.row_title, task.title)
     res.setTextViewTextSize(
       R.id.row_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
     )

@@ -45,7 +45,8 @@ class NotesListFactory(private val context: Context) :
   override fun getViewAt(position: Int): RemoteViews {
     return try {
       buildRow(position)
-    } catch (_: Throwable) {
+    } catch (e: Throwable) {
+      WidgetLog.report(context, "note row $position", e)
       emptyRow()
     }
   }
@@ -66,11 +67,7 @@ class NotesListFactory(private val context: Context) :
       R.id.note_title, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(12f, scale),
     )
     res.setTextColor(R.id.note_title, palette.text)
-    res.setInt(
-      R.id.note_title,
-      "setTextDirection",
-      if (WidgetStrings.isRtl(note.title)) 3 else 2,
-    )
+    WidgetStrings.align(res, R.id.note_title, note.title)
 
     // التاريخ معلومة على السطر، مع المجلد إن وُجد.
     val meta = buildString {
@@ -87,11 +84,7 @@ class NotesListFactory(private val context: Context) :
         R.id.note_meta, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(9f, scale),
       )
       res.setTextColor(R.id.note_meta, palette.mutedGreen)
-      res.setInt(
-        R.id.note_meta,
-        "setTextDirection",
-        if (WidgetStrings.isRtl(meta)) 3 else 2,
-      )
+      WidgetStrings.align(res, R.id.note_meta, meta)
     } else {
       res.setViewVisibility(R.id.note_meta, View.GONE)
     }
@@ -103,11 +96,7 @@ class NotesListFactory(private val context: Context) :
         R.id.note_preview, TypedValue.COMPLEX_UNIT_SP, WidgetStyle.sp(10f, scale),
       )
       res.setTextColor(R.id.note_preview, palette.muted)
-      res.setInt(
-        R.id.note_preview,
-        "setTextDirection",
-        if (WidgetStrings.isRtl(note.preview)) 3 else 2,
-      )
+      WidgetStrings.align(res, R.id.note_preview, note.preview)
     } else {
       res.setViewVisibility(R.id.note_preview, View.GONE)
     }

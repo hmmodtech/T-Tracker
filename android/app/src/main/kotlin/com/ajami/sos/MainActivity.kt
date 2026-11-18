@@ -47,6 +47,15 @@ class MainActivity : FlutterFragmentActivity() {
                 }
 
                 // Checkbox taps queued from the tasks widget.
+                // Diagnostics for the widgets: they run inside the launcher,
+                // so their failures have nowhere else to surface.
+                "widgetErrors" -> {
+                    result.success(WidgetLog.read(this))
+                }
+                "clearWidgetErrors" -> {
+                    WidgetLog.clear(this)
+                    result.success(null)
+                }
                 "pullToggles" -> {
                     val arr = org.json.JSONArray()
                     for (t in WidgetData.pendingToggles(this)) {

@@ -79,6 +79,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _card(Widget child) => Card(color: Colors.transparent, child: child);
 
+  /// يعرض آخر أخطاء الودجت — تُكتب في عملية الـ launcher.
+  Future<void> _showWidgetErrors() async {
+    final text = await WidgetBridge.errors();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: kSurface,
+        title: Text(s('Widget diagnostics', 'تشخيص الودجت')),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              text.trim().isEmpty
+                  ? s('No widget errors recorded.', 'لا توجد أخطاء مسجّلة للودجت.')
+                  : text,
+              style: TextStyle(
+                color: text.trim().isEmpty ? kMuted : kText,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await WidgetBridge.clearErrors();
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: Text(s('Clear', 'مسح')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(s('Close', 'إغلاق')),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -410,6 +451,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }),
                   )),
                   _header(s('Diagnostics', 'التشخيص')),
+                  _card(ListTile(
+                    leading: Icon(Icons.widgets_outlined, color: kGreen),
+                    title: Text(s('Widget diagnostics', 'تشخيص الودجت')),
+                    subtitle: Text(
+                      s(
+                        'Errors the home-screen widgets hit, if any',
+                        'أخطاء الودجت على الشاشة الرئيسية إن وُجدت',
+                      ),
+                      style: TextStyle(color: kMuted, fontSize: 12),
+                    ),
+                    trailing: Icon(Icons.chevron_right, color: kMuted),
+                    onTap: _showWidgetErrors,
+                  )),
                   _card(ListTile(
                     leading: Icon(Icons.bug_report_outlined, color: kGreen),
                     title: Text(s('Startup log', 'سجل بدء التشغيل')),

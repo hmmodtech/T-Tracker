@@ -344,6 +344,24 @@ class WidgetBridge {
     }
   }
 
+  /// آخر أخطاء الودجت كما سجّلتها الطبقة الأصلية.
+  static Future<String> errors() async {
+    try {
+      return await _channel.invokeMethod<String>('widgetErrors') ?? '';
+    } catch (e) {
+      logWidget('errors: $e');
+      return '';
+    }
+  }
+
+  static Future<void> clearErrors() async {
+    try {
+      await _channel.invokeMethod<void>('clearWidgetErrors');
+    } catch (e) {
+      logWidget('clearErrors: $e');
+    }
+  }
+
   /// ينفّذ أمراً بصيغة "action|taskId|day" — يُستخدم عند الإقلاع والاستئناف.
   static Future<void> runAction(
     String raw, {
